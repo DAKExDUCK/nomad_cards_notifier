@@ -1,0 +1,9 @@
+*.sqlite
+*.log
+*/__pycache__
+/venv
+/.vscode
+__pycache__
+/.mypy_cache
+test.ipynb
+.env

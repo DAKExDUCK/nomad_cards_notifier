@@ -1,0 +1,10 @@
+version: '3.4'
+
+services:
+  pocketmoodle:
+    image: nomad_cards_notifier:latest
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      TOKEN: "${TOKEN}"
