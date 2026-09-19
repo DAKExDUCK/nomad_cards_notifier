@@ -1,10 +1,35 @@
-version: '3.4'
-
 services:
-  pocketmoodle:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nomad_cards
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nomad_cards_notifier:
     image: nomad_cards_notifier:latest
     build:
       context: .
       dockerfile: ./Dockerfile
     environment:
       TOKEN: "${TOKEN}"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: nomad_cards
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
