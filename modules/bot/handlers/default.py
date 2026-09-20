@@ -1,13 +1,13 @@
 from html import escape
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import LinkPreviewOptions
 
-from config import NOMAD_BOT_CHAT_ID, NOMAD_STATION_URLS
+from config import NOMAD_BOT_CHAT_ID, NOMAD_STATION_URLS, TZ
 from modules.bot.keyborads.default import balance_keyboard, card_details_keyboard, cards_keyboard
 from modules.database import DatabaseService
 from modules.logger import Logger
@@ -22,7 +22,11 @@ def _format_balance(balance: str | None) -> str:
 
 
 def _format_updated_at(updated_at: datetime | None) -> str:
-    return updated_at.strftime("%d.%m.%Y %H:%M") if updated_at else "время неизвестно"
+    if not updated_at:
+        return "время неизвестно"
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    return f"{updated_at.astimezone(TZ):%d.%m.%Y %H:%M}"
 
 
 def _log_bot_error(context: str) -> None:
@@ -70,6 +74,8 @@ def _operation_text(operation) -> str:
         else "данные об объёме не указаны"
     )
     date_text = operation.occurred_at or "дата не указана"
+    if operation.occurred_at:
+        date_text = f"{date_text}"
     station_text = f"\n  📍 {_station_link(operation.station)}"
     return (
         f"{operation_icon} <b>{escape(operation_type)}</b> · {escape(date_text)}\n"

@@ -251,6 +251,8 @@ class NomadCardsCollector:
         for operation in operations:
             card = escape(operation.card_number or operation.card_external_id)
             date_text = escape(operation.occurred_at or "Не указано")
+            if operation.occurred_at:
+                date_text = f"{date_text}"
             amount = escape(operation.amount or "Не указано")
             fuel = escape(operation.fuel or "Не указано")
             holder = escape(operation.holder or "Не указано")

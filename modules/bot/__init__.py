@@ -1,5 +1,5 @@
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
+from aiogram.types import BotCommand, BotCommandScopeChat
 
 from config import NOMAD_BOT_CHAT_ID, RATE
 from modules.bot.handlers.errors import register_handlers_errors
@@ -10,7 +10,6 @@ from .throttling import ThrottlingMiddleware
 
 async def set_commands(bot: Bot):
     await bot.delete_my_commands()
-    await bot.delete_my_commands(BotCommandScopeAllPrivateChats())
     if not NOMAD_BOT_CHAT_ID:
         return
     commands = [

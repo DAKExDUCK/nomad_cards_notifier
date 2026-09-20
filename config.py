@@ -12,7 +12,7 @@ TOKEN = str(get_from_env("TOKEN"))
 
 RATE = 0.25
 
-TZ_RAW = str(get_from_env("TZ", "Asia/Aqtobe"))
+TZ_RAW = str(get_from_env("TZ", "Asia/Almaty"))
 TZ = timezone(TZ_RAW)
 
 # Database config
