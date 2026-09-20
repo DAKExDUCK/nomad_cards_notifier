@@ -1,6 +1,7 @@
 from . import async_session
+from sqlalchemy import select
 from .dal import AccountDAL, UserDAL
-from .models import Account, User
+from .models import Account, FuelCard, FuelCardOperation, User
 
 
 class DatabaseService:
@@ -60,3 +61,52 @@ class DatabaseService:
     async def set_user_active(user_id: int) -> User | None:
         """Mark user as active"""
         return await DatabaseService.update_user(user_id)
+
+    @staticmethod
+    async def save_card_snapshot(card_record, operation_records, inserted_records=None) -> int:
+        """Store a card and insert only operations not seen before."""
+        async with async_session() as session:
+            card = await session.scalar(select(FuelCard).where(FuelCard.external_id == card_record.external_id))
+            if card is None:
+                card = FuelCard(
+                    external_id=card_record.external_id,
+                    name=card_record.name,
+                    detail_url=card_record.url,
+                )
+                session.add(card)
+                await session.flush()
+            else:
+                card.name = card_record.name
+                card.detail_url = card_record.url
+
+            inserted = 0
+            for record in operation_records:
+                exists = await session.scalar(
+                    select(FuelCardOperation.id).where(FuelCardOperation.external_id == record.external_id)
+                )
+                if exists is not None:
+                    continue
+                session.add(
+                    FuelCardOperation(
+                        card_id=card.id,
+                        external_id=record.external_id,
+                        occurred_at=record.occurred_at,
+                        operation_type=record.operation_type,
+                        amount=record.amount,
+                        quantity=record.quantity,
+                        station=record.station,
+                        transaction_number=record.transaction_number,
+                        dispenser=record.dispenser,
+                        fuel=record.fuel,
+                        unit_price=record.unit_price,
+                        issuer=record.issuer,
+                        card_number=record.card_number,
+                        holder=record.holder,
+                        contract=record.contract,
+                    )
+                )
+                if inserted_records is not None:
+                    inserted_records.append(record)
+                inserted += 1
+            await session.commit()
+            return inserted
