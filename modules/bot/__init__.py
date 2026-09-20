@@ -1,5 +1,5 @@
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import BotCommand, BotCommandScopeChat
+from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeAllGroupChats
 
 from config import NOMAD_BOT_CHAT_ID, RATE
 from modules.bot.handlers.errors import register_handlers_errors
@@ -17,6 +17,7 @@ async def set_commands(bot: Bot):
         BotCommand(command="get_cards", description="Выбрать карту"),
     ]
     await bot.set_my_commands(commands, BotCommandScopeChat(chat_id=NOMAD_BOT_CHAT_ID))
+    await bot.set_my_commands(commands, BotCommandScopeAllGroupChats())
 
 
 async def register_bot_handlers(bot: Bot, dp: Dispatcher):
