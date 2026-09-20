@@ -414,6 +414,9 @@ class NomadCardsCollector:
             headers = [NomadCardsCollector._normalize_header(value) for value in table[0]]
             date_index = NomadCardsCollector._header_index(headers, "дат", "date", "время")
             amount_index = NomadCardsCollector._header_index(headers, "сумм", "amount", "пополн", "зачисл")
+            quantity_index = NomadCardsCollector._header_index(
+                headers, "объем", "объём", "колич", "литр", "quantity", "volume"
+            )
             operation_index = NomadCardsCollector._header_index(headers, "операц", "тип", "вид")
             product_index = NomadCardsCollector._header_index(headers, "продукт", "топливо", "product", "fuel")
             if date_index is None or operation_index is None:
@@ -426,6 +429,7 @@ class NomadCardsCollector:
                     continue
                 operation_text = row[operation_index] if operation_index is not None and len(row) > operation_index else ""
                 amount = row[amount_index] if amount_index is not None and len(row) > amount_index else None
+                quantity = row[quantity_index] if quantity_index is not None and len(row) > quantity_index else None
                 if amount is None:
                     amount_match = re.search(r"[-+]?\d[\d\s]*[.,]\d{2}", operation_text)
                     amount = amount_match.group(0).replace(" ", "") if amount_match else None
@@ -440,7 +444,7 @@ class NomadCardsCollector:
                         occurred_at=occurred_at,
                         operation_type="1",
                         amount=amount,
-                        quantity=None,
+                        quantity=quantity,
                         station=None,
                         transaction_number=None,
                         dispenser=None,

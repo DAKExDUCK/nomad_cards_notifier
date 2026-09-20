@@ -1,69 +1,63 @@
+from aiogram import Bot
+
+from modules.logger import Logger
+
+from modules.database import close_db, init_db
+from modules.fuel_cards import NomadCardsCollector
 import asyncio
-from contextlib import suppress
-
-from aiogram import Bot, Dispatcher
-
+import sys
 from config import (
     NOMAD_BASE_URL,
-    NOMAD_COLLECT_INTERVAL,
-    NOMAD_COLLECTOR_ENABLED,
+    NOMAD_USERNAME,
+    NOMAD_PASSWORD,
     NOMAD_CLID,
     NOMAD_NOTIFY_CHAT_ID,
-    NOMAD_PASSWORD,
+    NOMAD_COLLECT_INTERVAL,
     NOMAD_SALES_FROM,
     NOMAD_SALES_TO,
     NOMAD_STATION_URLS,
-    NOMAD_USERNAME,
     TOKEN,
 )
-from modules.bot import register_bot_handlers
-from modules.database import close_db, init_db
-from modules.fuel_cards import NomadCardsCollector
-from modules.logger import Logger
+
+bot = Bot(token=TOKEN)
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
-async def main():
-    Logger.load_config()
+async def notify(text: str) -> None:
+    await bot.send_message(chat_id=int(NOMAD_NOTIFY_CHAT_ID), text=text, parse_mode="HTML")
 
-    # Initialize database
+
+Logger.load_config()
+logger = Logger()
+
+collector = NomadCardsCollector(
+    base_url=NOMAD_BASE_URL,
+    username=NOMAD_USERNAME,
+    password=NOMAD_PASSWORD,
+    clid=NOMAD_CLID,
+    notify=notify,
+    interval_seconds=NOMAD_COLLECT_INTERVAL,
+    sales_from=NOMAD_SALES_FROM,
+    sales_to=NOMAD_SALES_TO,
+    station_urls=NOMAD_STATION_URLS,
+)
+
+
+async def main() -> None:
     await init_db()
-    Logger.logger.info("Database initialized")
-
-    # Bot setup
-    bot = Bot(token=TOKEN)
-    dp = Dispatcher()
-
-    await register_bot_handlers(bot, dp)
-    collector_task = None
-
-    if NOMAD_COLLECTOR_ENABLED and NOMAD_USERNAME and NOMAD_PASSWORD and NOMAD_CLID and NOMAD_NOTIFY_CHAT_ID:
-        async def notify(text: str) -> None:
-            await bot.send_message(chat_id=int(NOMAD_NOTIFY_CHAT_ID), text=text, parse_mode="HTML")
-
-        collector = NomadCardsCollector(
-            base_url=NOMAD_BASE_URL,
-            username=NOMAD_USERNAME,
-            password=NOMAD_PASSWORD,
-            clid=NOMAD_CLID,
-            notify=notify,
-            interval_seconds=NOMAD_COLLECT_INTERVAL,
-            sales_from=NOMAD_SALES_FROM,
-            sales_to=NOMAD_SALES_TO,
-            station_urls=NOMAD_STATION_URLS,
-        )
-        collector_task = asyncio.create_task(collector.run_forever(), name="nomad-cards-collector")
-        Logger.info("Nomad fuel-card collector started")
-
+    logger.info("Initialized database")
     try:
-        await dp.start_polling(bot)
+        logger.info("Running collector once")
+        await collector.run_forever()
+        logger.info("Collector run completed")
     finally:
-        if collector_task:
-            collector_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await collector_task
         await close_db()
         await bot.session.close()
 
 
 if __name__ == "__main__":
+    logger.info("Starting main function")
     asyncio.run(main())
+    logger.info("Finished main function")

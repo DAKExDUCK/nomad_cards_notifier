@@ -63,6 +63,7 @@ class FuelCardOperation(Base):
     card_id = Column(Integer, ForeignKey("fuel_cards.id"), nullable=False, index=True)
     external_id = Column(String(255), nullable=False)
     occurred_at = Column(String(100), nullable=True)
+    occurred_at_datetime = Column(DateTime, nullable=True, index=True)
     operation_type = Column(String(255), nullable=False)
     amount = Column(String(100), nullable=True)
     quantity = Column(String(100), nullable=True)

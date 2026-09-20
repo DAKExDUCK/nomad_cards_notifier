@@ -95,6 +95,7 @@ class DatabaseService:
                         card_id=card.id,
                         external_id=record.external_id,
                         occurred_at=record.occurred_at,
+                        occurred_at_datetime=DatabaseService._operation_datetime(record.occurred_at),
                         operation_type=record.operation_type,
                         amount=record.amount,
                         quantity=record.quantity,
@@ -132,15 +133,21 @@ class DatabaseService:
             ).all()
             operations_by_card = {}
             for card_number, operation in rows:
-                occurred_at = DatabaseService._operation_datetime(operation.occurred_at)
+                occurred_at = (
+                    operation.occurred_at_datetime
+                    or DatabaseService._operation_datetime(operation.occurred_at)
+                )
                 if occurred_at is not None and occurred_at >= since:
                     operations_by_card.setdefault(card_number, []).append(operation)
 
             updated = 0
             for operations in operations_by_card.values():
                 operations.sort(
-                    key=lambda operation: DatabaseService._operation_datetime(operation.occurred_at)
-                    or datetime.min
+                    key=lambda operation: (
+                        operation.occurred_at_datetime
+                        or DatabaseService._operation_datetime(operation.occurred_at)
+                        or datetime.min
+                    )
                 )
                 seeded_operations = [
                     operation for operation in operations if operation.fuel_balance is not None
@@ -161,9 +168,9 @@ class DatabaseService:
                     updated += 1
 
                 balance = Decimal(str(seed.fuel_balance).replace(",", "."))
-                for operation in reversed(operations[:seed_index]):
-                    balance -= DatabaseService._signed_movement(operation)
-                    operation.fuel_balance = DatabaseService._format_balance(balance)
+                for index in range(seed_index - 1, -1, -1):
+                    balance -= DatabaseService._signed_movement(operations[index + 1])
+                    operations[index].fuel_balance = DatabaseService._format_balance(balance)
                     updated += 1
 
             if operation_records:
@@ -183,9 +190,10 @@ class DatabaseService:
 
     @staticmethod
     def _signed_movement(operation) -> Decimal:
-        value = operation.quantity if operation.operation_type == "0" else operation.amount
+        value = operation.quantity or operation.amount
         try:
-            movement = Decimal(str(value).replace(",", "."))
+            normalized = str(value).replace("\u00a0", " ").replace(" ", "").replace(",", ".")
+            movement = Decimal(normalized)
         except (InvalidOperation, AttributeError):
             movement = Decimal("0")
         return -movement if operation.operation_type == "0" else movement

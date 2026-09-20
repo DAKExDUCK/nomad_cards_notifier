@@ -28,6 +28,20 @@ async def init_db():
             "ALTER TABLE fuel_card_operations "
             "ADD COLUMN IF NOT EXISTS fuel_balance VARCHAR(100)"
         ))
+        await conn.execute(text(
+            "ALTER TABLE fuel_card_operations "
+            "ADD COLUMN IF NOT EXISTS occurred_at_datetime TIMESTAMP"
+        ))
+        await conn.execute(text(
+            "UPDATE fuel_card_operations "
+            "SET occurred_at_datetime = CASE "
+            "WHEN occurred_at ~ '^[0-9]{2}[.][0-9]{2}[.][0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}$' "
+            "THEN to_timestamp(occurred_at, 'DD.MM.YYYY HH24:MI:SS')::timestamp "
+            "WHEN occurred_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$' "
+            "THEN to_timestamp(occurred_at, 'YYYY-MM-DD HH24:MI:SS')::timestamp "
+            "ELSE NULL END "
+            "WHERE occurred_at_datetime IS NULL AND occurred_at IS NOT NULL"
+        ))
 
 
 async def close_db():
