@@ -118,6 +118,65 @@ class DatabaseService:
             return inserted
 
     @staticmethod
+    async def get_fuel_cards() -> list[FuelCard]:
+        async with async_session() as session:
+            result = await session.execute(select(FuelCard).order_by(FuelCard.id))
+            return list(result.scalars().all())
+
+    @staticmethod
+    async def get_fuel_cards_with_balances() -> list[tuple[FuelCard, str | None]]:
+        async with async_session() as session:
+            balance_subquery = (
+                select(FuelCardOperation.fuel_balance)
+                .where(
+                    FuelCardOperation.card_id == FuelCard.id,
+                    FuelCardOperation.fuel_balance.is_not(None),
+                )
+                .order_by(
+                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
+                    FuelCardOperation.id.desc(),
+                )
+                .limit(1)
+                .scalar_subquery()
+            )
+            result = await session.execute(
+                select(FuelCard, balance_subquery.label("fuel_balance"))
+                .order_by(FuelCard.id)
+            )
+            return list(result.all())
+
+    @staticmethod
+    async def get_card_operations(card_id: int, limit: int = 10) -> list[FuelCardOperation]:
+        async with async_session() as session:
+            result = await session.execute(
+                select(FuelCardOperation)
+                .where(FuelCardOperation.card_id == card_id)
+                .order_by(
+                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
+                    FuelCardOperation.id.desc(),
+                )
+                .limit(limit)
+            )
+            return list(result.scalars().all())
+
+    @staticmethod
+    async def get_card_balance(card_id: int) -> str | None:
+        async with async_session() as session:
+            result = await session.execute(
+                select(FuelCardOperation.fuel_balance)
+                .where(
+                    FuelCardOperation.card_id == card_id,
+                    FuelCardOperation.fuel_balance.is_not(None),
+                )
+                .order_by(
+                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
+                    FuelCardOperation.id.desc(),
+                )
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+
+    @staticmethod
     async def recalculate_fuel_balances(
         days: int = 60,
         operation_records: list | None = None,

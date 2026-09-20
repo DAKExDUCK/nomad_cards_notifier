@@ -21,4 +21,4 @@ COPY . /nomad_cards_notifier
 RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /nomad_cards_notifier
 USER appuser
 
-CMD ["python3.10", "main.py"]
+CMD ["python3.10", "run_bot.py"]

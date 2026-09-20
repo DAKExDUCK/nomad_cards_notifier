@@ -1,152 +1,259 @@
-from aiogram import F, Router, types
-from aiogram.filters.command import Command
-from aiogram.fsm.context import FSMContext
+from html import escape
+import re
+from datetime import datetime
 
-import global_vars
-from config import RATE
-from modules.bot.functions import count_active_user
-from modules.bot.keyborads.default import main_menu, profile_btns, register_nomad_account_btn
-from modules.bot.throttling import rate_limit
+from aiogram import F, Router, types
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
+from aiogram.types import LinkPreviewOptions
+
+from config import NOMAD_BOT_CHAT_ID, NOMAD_STATION_URLS
+from modules.bot.keyborads.default import balance_keyboard, card_details_keyboard, cards_keyboard
 from modules.database import DatabaseService
 from modules.logger import Logger
 
 
-@rate_limit(limit=RATE)
-@Logger.log_msg
-async def start(message: types.Message, state: FSMContext):
-    if not message.from_user:
-        return
-
-    user_id = message.from_user.id
-    user = await DatabaseService.get_user(user_id)
-
-    kb = None
-    if not user:
-        text = "Приветствую\! Я бот для быстрого и удобного получения нотификаций об операциях с топливными карточками Nomad АЗС\.\n\n"
-        await message.answer(text, parse_mode="MarkdownV2")
-
-        text = (
-            "*Что я могу*:\n"
-            "1\. Показывать *текущий баланс* на карточке\n"
-            "2\. Операции по пополнению и использования карточки для заправки\n\n"
-            "Все указанные функции *БЕСПЛАТНЫЕ*"
-        )
-        await message.answer(text, parse_mode="MarkdownV2")
-
-        text = (
-            "Чтобы начать пользоваться функционалом нужно выполнить следующие шаги:\n"
-            "1\. Ввести данные *личного кабинета* \(логин и пароль\)\n"
-            "2\. Дождаться подтверждения входа в кабинет\n"
-            "3\. Настроить карточки для отслеживания и получать нотификации о всех операциях с ними"
-        )
-        kb = register_nomad_account_btn(kb)
-    elif user.has_account():
-        kb = profile_btns(kb)
-        text = "Выберите и нажмите:"
-    else:
-        kb = register_nomad_account_btn(kb)
-
-    await message.answer(text, reply_markup=kb.as_markup(), parse_mode="MarkdownV2")
-    await state.clear()
+def _allowed(chat_id: int) -> bool:
+    return NOMAD_BOT_CHAT_ID != 0 and chat_id == NOMAD_BOT_CHAT_ID
 
 
-@rate_limit(limit=RATE)
-@Logger.log_msg
-async def help_msg(message: types.Message, state: FSMContext):
-    text = (
-        "Я бот для быстрого и удобного получения нотификаций об операциях с топливными карточками Nomad АЗС\.\n\n"
-        "*Что я могу*:\n"
-        "1\. Показывать *текущий баланс* на карточке\n"
-        "2\. Операции по пополнению и использования карточки для заправки\n\n"
-        "Все указанные функции *БЕСПЛАТНЫЕ*\n\n"
-        "Чтобы начать пользоваться функционалом нужно выполнить следующие шаги:\n"
-        "1\. Ввести данные *личного кабинета* \(логин и пароль\)\n"
-        "2\. Дождаться подтверждения входа в кабинет\n"
-        "3\. Настроить карточки для отслеживания и получать нотификации о всех операциях с ними\n\n"
-        "Если у вас остались вопросы, вы можете обратиться в поддержку по электронной почте: example@example\.com"
-    )
-    kb = main_menu()
-
-    await message.answer(text, reply_markup=kb.as_markup(), parse_mode="MarkdownV2")
-    await state.clear()
+def _format_balance(balance: str | None) -> str:
+    return f"{balance} л" if balance else "не указан"
 
 
-@rate_limit(limit=RATE)
-@count_active_user
-@Logger.log_msg
-async def profile(query: types.CallbackQuery):
-    if not query.message:
-        return
-    if isinstance(query.message, types.InaccessibleMessage):
-        return
-    if not query.data:
-        return
+def _format_updated_at(updated_at: datetime | None) -> str:
+    return updated_at.strftime("%d.%m.%Y %H:%M") if updated_at else "время неизвестно"
 
-    user_id = query.from_user.id
-    user = await DatabaseService.get_user(user_id)
-    if not user:
-        return
 
-    text = ""
-    text += f"User ID: `{user_id}`\n"
+def _log_bot_error(context: str) -> None:
+    Logger.error(f"Bot data request failed: {context}", exc_info=True)
 
-    await query.message.edit_text(
-        text, reply_markup=profile_btns().as_markup(), parse_mode="MarkdownV2", disable_web_page_preview=True
+
+def _is_message_not_modified(error: TelegramBadRequest) -> bool:
+    return "message is not modified" in str(error)
+
+
+def _cards_selection_text() -> str:
+    return (
+        "💳 <b>Ваши карты</b>\n\n"
+        "Выберите карту, чтобы посмотреть остаток и последние операции:"
     )
 
 
-@rate_limit(limit=RATE)
-@count_active_user
-@Logger.log_msg
-async def back_to_main_menu(query: types.CallbackQuery, state: FSMContext):
-    if not query.message:
+def _station_link(station: str | None) -> str:
+    if not station:
+        return "АЗС не указана"
+    station_name = escape(station)
+    normalized_name = re.sub(r"\s+", " ", station.strip()).casefold()
+    station_url = next(
+        (
+            url
+            for name, url in NOMAD_STATION_URLS.items()
+            if re.sub(r"\s+", " ", str(name).strip()).casefold() == normalized_name
+        ),
+        None,
+    )
+    if not station_url:
+        return station_name
+    return f'<a href="{escape(str(station_url), quote=True)}">{station_name}</a>'
+
+
+def _operation_text(operation) -> str:
+    is_income = operation.operation_type == "1"
+    operation_type = "Пополнение" if is_income else "Заправка"
+    operation_icon = "➕" if is_income else "⛽"
+    movement = (
+        f"{operation.quantity} л"
+        if operation.quantity
+        else f"{operation.amount} ₸"
+        if operation.amount
+        else "данные об объёме не указаны"
+    )
+    date_text = operation.occurred_at or "дата не указана"
+    station_text = f"\n  📍 {_station_link(operation.station)}"
+    return (
+        f"{operation_icon} <b>{escape(operation_type)}</b> · {escape(date_text)}\n"
+        f"  {escape(operation.fuel or 'Топливо не указано')} · {escape(movement)}\n"
+        f"  Остаток после операции: <b>{escape(_format_balance(operation.fuel_balance))}</b>"
+        f"{station_text}\n"
+    )
+
+
+async def get_balance(message: types.Message) -> None:
+    if not _allowed(message.chat.id):
         return
-    if isinstance(query.message, types.InaccessibleMessage):
-        return
-    if not query.data:
-        return
-
-    user_id = query.from_user.id
-    user = await DatabaseService.get_user(user_id)
-
-    kb = None
-    if not user or not user.has_account():
-        text = "Приветствую\! Я бот для быстрого и удобного получения нотификаций об операциях с топливными карточками Nomad АЗС\.\n\n"
-        kb = register_nomad_account_btn(kb)
-    else:
-        if user.has_account():
-            kb = profile_btns(kb)
-        else:
-            kb = register_nomad_account_btn(kb)
-
-        text = "Выберите и нажмите:"
-
-    await query.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="MarkdownV2")
-    await state.clear()
-
-
-@rate_limit(limit=RATE)
-@count_active_user
-async def delete_msg(query: types.CallbackQuery):
-    if not query.message:
-        return
-    if isinstance(query.message, types.InaccessibleMessage):
-        return
-    if not query.data:
-        return
-
     try:
-        await global_vars.bot.delete_message(query.message.chat.id, query.message.message_id)
-        await query.answer()
+        cards = await DatabaseService.get_fuel_cards_with_balances()
+        if not cards:
+            await message.answer("Карточки пока не загружены.")
+            return
+        lines = ["⛽ <b>Баланс топлива</b>", ""]
+        for card, balance in cards:
+            lines.append(
+                f"💳 <b>{escape(card.name)}</b>\n"
+                f"   Остаток: <b>{escape(_format_balance(balance))}</b>"
+            )
+        updated_at = max((card.updated_at for card, _ in cards), default=None)
+        lines.extend(("", f"Обновлено: {_format_updated_at(updated_at)}"))
+        await message.answer(
+            "\n".join(lines),
+            parse_mode="HTML",
+            reply_markup=balance_keyboard().as_markup(),
+        )
     except Exception:
-        await query.answer("Ошибка!")
+        _log_bot_error("get_balance")
+        await message.answer("Не удалось загрузить баланс. Попробуйте ещё раз позже.")
 
 
-def register_handlers_default(router: Router):
-    router.message.register(start, Command("start"))
-    router.message.register(help_msg, Command("help"))
+async def get_cards(message: types.Message) -> None:
+    if not _allowed(message.chat.id):
+        return
+    try:
+        cards = await DatabaseService.get_fuel_cards()
+        if not cards:
+            await message.answer("Карточки пока не загружены.")
+            return
+        await message.answer(
+            _cards_selection_text(),
+            parse_mode="HTML",
+            reply_markup=cards_keyboard(cards).as_markup(),
+        )
+    except Exception:
+        _log_bot_error("get_cards")
+        await message.answer("Не удалось загрузить список карт. Попробуйте ещё раз позже.")
 
-    router.callback_query.register(back_to_main_menu, F.func(lambda c: c.data == "main_menu"))
-    router.callback_query.register(profile, F.func(lambda c: c.data == "profile"))
 
-    router.callback_query.register(delete_msg, F.func(lambda c: c.data == "delete"))
+async def card_details(query: types.CallbackQuery) -> None:
+    if not query.message or isinstance(query.message, types.InaccessibleMessage):
+        return
+    if not _allowed(query.message.chat.id) or not query.data:
+        await query.answer()
+        return
+    parts = query.data.split(":")
+    is_refresh = len(parts) == 3 and parts[1] == "refresh"
+    try:
+        card_id = int(parts[2] if is_refresh else parts[1])
+    except (IndexError, ValueError):
+        await query.answer("Некорректная карта", show_alert=True)
+        return
+    try:
+        cards = await DatabaseService.get_fuel_cards()
+        card = next((item for item in cards if item.id == card_id), None)
+        if card is None:
+            await query.answer("Карта не найдена", show_alert=True)
+            return
+        operations = await DatabaseService.get_card_operations(card.id)
+        balance = await DatabaseService.get_card_balance(card.id)
+        lines = [
+            f"💳 <b>{escape(card.name)}</b>",
+            f"⛽ Текущий остаток: <b>{escape(_format_balance(balance))}</b>",
+            "",
+            "🧾 <b>Последние операции</b>",
+        ]
+        if operations:
+            lines.extend(_operation_text(operation) for operation in operations)
+        else:
+            lines.append("Пока операций нет.")
+        await query.message.edit_text(
+            "\n".join(lines),
+            parse_mode="HTML",
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+            reply_markup=card_details_keyboard(card.id).as_markup(),
+        )
+        await query.answer("Данные обновлены" if is_refresh else None)
+    except TelegramBadRequest as error:
+        if _is_message_not_modified(error):
+            await query.answer("Данные карты уже актуальны")
+            return
+        _log_bot_error(f"card_details:{card_id}")
+        await query.answer("Не удалось загрузить данные карты", show_alert=True)
+    except Exception:
+        _log_bot_error(f"card_details:{card_id}")
+        await query.answer("Не удалось загрузить данные карты", show_alert=True)
+
+
+async def cards_back(query: types.CallbackQuery) -> None:
+    if not query.message or isinstance(query.message, types.InaccessibleMessage):
+        return
+    if not _allowed(query.message.chat.id):
+        await query.answer()
+        return
+    await _show_cards(query)
+
+
+async def _show_cards(query: types.CallbackQuery) -> None:
+    try:
+        cards = await DatabaseService.get_fuel_cards()
+        if not cards:
+            await query.message.edit_text("Карточки пока не загружены.")
+        else:
+            await query.message.edit_text(
+                _cards_selection_text(),
+                parse_mode="HTML",
+                reply_markup=cards_keyboard(cards).as_markup(),
+            )
+        await query.answer()
+    except TelegramBadRequest as error:
+        if _is_message_not_modified(error):
+            await query.answer("Список уже актуален")
+            return
+        _log_bot_error("show_cards")
+        await query.answer("Не удалось загрузить список карт", show_alert=True)
+    except Exception:
+        _log_bot_error("show_cards")
+        await query.answer("Не удалось загрузить список карт", show_alert=True)
+
+
+async def refresh_balance(query: types.CallbackQuery) -> None:
+    if not query.message or isinstance(query.message, types.InaccessibleMessage):
+        return
+    if not _allowed(query.message.chat.id):
+        await query.answer()
+        return
+    try:
+        cards = await DatabaseService.get_fuel_cards_with_balances()
+        if not cards:
+            await query.message.edit_text("Карточки пока не загружены.")
+            await query.answer()
+            return
+        lines = ["⛽ <b>Баланс топлива</b>", ""]
+        for card, balance in cards:
+            lines.append(
+                f"💳 <b>{escape(card.name)}</b>\n"
+                f"   Остаток: <b>{escape(_format_balance(balance))}</b>"
+            )
+        updated_at = max((card.updated_at for card, _ in cards), default=None)
+        lines.extend(("", f"Обновлено: {_format_updated_at(updated_at)}"))
+        await query.message.edit_text(
+            "\n".join(lines),
+            parse_mode="HTML",
+            reply_markup=balance_keyboard().as_markup(),
+        )
+        await query.answer("Баланс обновлён")
+    except TelegramBadRequest as error:
+        if _is_message_not_modified(error):
+            await query.answer("Баланс уже актуален")
+            return
+        _log_bot_error("refresh_balance")
+        await query.answer("Не удалось обновить баланс", show_alert=True)
+    except Exception:
+        _log_bot_error("refresh_balance")
+        await query.answer("Не удалось обновить баланс", show_alert=True)
+
+
+async def refresh_cards(query: types.CallbackQuery) -> None:
+    if not query.message or isinstance(query.message, types.InaccessibleMessage):
+        return
+    if not _allowed(query.message.chat.id):
+        await query.answer()
+        return
+    await _show_cards(query)
+
+
+def register_handlers_default(router: Router) -> None:
+    router.message.register(get_balance, Command("get_balance"))
+    router.message.register(get_cards, Command("get_cards"))
+    router.callback_query.register(refresh_balance, F.data == "balance:refresh")
+    router.callback_query.register(refresh_cards, F.data == "cards:refresh")
+    router.callback_query.register(cards_back, F.data == "cards:back")
+    router.callback_query.register(card_details, F.data.startswith("card:"))

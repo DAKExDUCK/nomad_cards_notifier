@@ -2,13 +2,14 @@ import asyncio
 from contextlib import suppress
 
 from aiogram import Bot, Dispatcher
+from aiogram.types import LinkPreviewOptions
 
 from config import (
     NOMAD_BASE_URL,
+    NOMAD_BOT_CHAT_ID,
     NOMAD_COLLECT_INTERVAL,
     NOMAD_COLLECTOR_ENABLED,
     NOMAD_CLID,
-    NOMAD_NOTIFY_CHAT_ID,
     NOMAD_PASSWORD,
     NOMAD_SALES_FROM,
     NOMAD_SALES_TO,
@@ -36,9 +37,14 @@ async def main():
     await register_bot_handlers(bot, dp)
     collector_task = None
 
-    if NOMAD_COLLECTOR_ENABLED and NOMAD_USERNAME and NOMAD_PASSWORD and NOMAD_CLID and NOMAD_NOTIFY_CHAT_ID:
+    if NOMAD_COLLECTOR_ENABLED and NOMAD_USERNAME and NOMAD_PASSWORD and NOMAD_CLID and NOMAD_BOT_CHAT_ID:
         async def notify(text: str) -> None:
-            await bot.send_message(chat_id=int(NOMAD_NOTIFY_CHAT_ID), text=text, parse_mode="HTML")
+            await bot.send_message(
+                chat_id=NOMAD_BOT_CHAT_ID,
+                text=text,
+                parse_mode="HTML",
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
+            )
 
         collector = NomadCardsCollector(
             base_url=NOMAD_BASE_URL,

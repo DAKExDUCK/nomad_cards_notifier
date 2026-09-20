@@ -259,12 +259,12 @@ class NomadCardsCollector:
             if operation.operation_type == "1":
                 messages.append(
                     "💰 <b>Пополнение карты</b>\n"
-                    f"💳 Карта: <code>{card}</code>\n"
-                    f"🛢️ Продукт: <b>{fuel}</b>\n"
+                    f"💳 Карта: <code>{holder or card}</code>\n"
+                    f"🛢️ Топливо: <b>{fuel}</b>\n"
                     f"💵 Сумма: <b>{amount} ₸</b>\n"
+                    f"⛽ Обьем: <b>{quantity} л</b>\n"
                     f"📊 Остаток: <b>{balance}</b>\n"
                     f"🕒 <i>{date_text}</i>\n"
-                    f"👤 <i>{holder}</i>"
                 )
                 continue
 
@@ -274,17 +274,13 @@ class NomadCardsCollector:
             station_url = self.station_urls.get(NomadCardsCollector._normalize_station_name(station_name))
             if station_url:
                 station = f'<a href="{escape(station_url, quote=True)}">{station}</a>'
-            transaction = escape(operation.transaction_number or "Не указано")
             messages.append(
                 "⛽ <b>Расход топлива</b>\n"
-                f"💳 Карта: <code>{card}</code>\n"
+                f"💳 Карта: <code>{holder or card}</code>\n"
                 f"📍 АЗС: <b>{station}</b>\n"
                 f"🛢️ Топливо: <b>{fuel}</b>\n"
                 f"📏 Объём: <b>{quantity} л</b>\n"
-                f"💵 Сумма: <b>{amount} ₸</b>\n"
-                f"🔢 Транзакция: <code>{transaction}</code>\n"
                 f"🕒 <i>{date_text}</i>\n"
-                f"👤 <i>{holder}</i>\n"
                 f"📊 Остаток: <b>{balance} л</b>\n"
             )
         return "\n\n".join(messages)

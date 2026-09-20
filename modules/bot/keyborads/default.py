@@ -1,30 +1,26 @@
-from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
-def main_menu(kb: InlineKeyboardBuilder | None = None) -> InlineKeyboardBuilder:
-    if kb is None:
-        kb = InlineKeyboardBuilder()
-
-    kb.row(InlineKeyboardButton(text="Назад", callback_data="main_menu"))
-
-    return kb
-
-
-def register_nomad_account_btn(kb: InlineKeyboardBuilder | None = None) -> InlineKeyboardBuilder:
-    if kb is None:
-        kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="Зарегестрировать аккаунт Nomad", callback_data="register"))
-
-    return kb
+def balance_keyboard() -> InlineKeyboardBuilder:
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(text="🔄 Обновить", callback_data="balance:refresh")
+    keyboard.button(text="💳 К картам", callback_data="cards:back")
+    keyboard.adjust(1)
+    return keyboard
 
 
-def profile_btns(kb: InlineKeyboardBuilder | None = None) -> InlineKeyboardBuilder:
-    if kb is None:
-        kb = InlineKeyboardBuilder()
+def cards_keyboard(cards) -> InlineKeyboardBuilder:
+    keyboard = InlineKeyboardBuilder()
+    for card in cards:
+        keyboard.button(text=f"💳 {card.name}", callback_data=f"card:{card.id}")
+    keyboard.button(text="🔄 Обновить список", callback_data="cards:refresh")
+    keyboard.adjust(1)
+    return keyboard
 
-    settings_btn = InlineKeyboardButton(text="⚙️", callback_data="settings")
-    profile_btn = InlineKeyboardButton(text="👤", callback_data="profile")
-    kb.row(settings_btn, profile_btn)
 
-    return kb
+def card_details_keyboard(card_id: int) -> InlineKeyboardBuilder:
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(text="🔄 Обновить", callback_data=f"card:refresh:{card_id}")
+    keyboard.button(text="⬅️ Назад", callback_data="cards:back")
+    keyboard.adjust(1)
+    return keyboard
