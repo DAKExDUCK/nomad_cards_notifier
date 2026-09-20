@@ -75,6 +75,7 @@ class FuelCardOperation(Base):
     card_number = Column(String(100), nullable=True, index=True)
     holder = Column(String(255), nullable=True)
     contract = Column(String(255), nullable=True)
+    fuel_balance = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
     card = relationship("FuelCard", back_populates="operations")

@@ -24,6 +24,10 @@ async def init_db():
     """Initialize database (create tables)"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text(
+            "ALTER TABLE fuel_card_operations "
+            "ADD COLUMN IF NOT EXISTS fuel_balance VARCHAR(100)"
+        ))
 
 
 async def close_db():

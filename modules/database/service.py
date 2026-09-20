@@ -1,4 +1,7 @@
 from . import async_session
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
+
 from sqlalchemy import select
 from .dal import AccountDAL, UserDAL
 from .models import Account, FuelCard, FuelCardOperation, User
@@ -103,6 +106,7 @@ class DatabaseService:
                         card_number=record.card_number,
                         holder=record.holder,
                         contract=record.contract,
+                        fuel_balance=record.fuel_balance,
                     )
                 )
                 if inserted_records is not None:
@@ -110,3 +114,86 @@ class DatabaseService:
                 inserted += 1
             await session.commit()
             return inserted
+
+    @staticmethod
+    async def recalculate_fuel_balances(days: int = 60) -> int:
+        """Recalculate balances from the latest persisted balance per card."""
+        since = datetime.now() - timedelta(days=days)
+        async with async_session() as session:
+            rows = (
+                await session.execute(
+                    select(FuelCard.external_id, FuelCardOperation)
+                    .join(FuelCardOperation.card)
+                )
+            ).all()
+            operations_by_card = {}
+            for card_number, operation in rows:
+                occurred_at = DatabaseService._operation_datetime(operation.occurred_at)
+                if occurred_at is not None and occurred_at >= since:
+                    operations_by_card.setdefault(card_number, []).append(operation)
+
+            updated = 0
+            for operations in operations_by_card.values():
+                operations.sort(
+                    key=lambda operation: DatabaseService._operation_datetime(operation.occurred_at)
+                    or datetime.min
+                )
+                seeded_operations = [
+                    operation for operation in operations if operation.fuel_balance is not None
+                ]
+                if not seeded_operations:
+                    continue
+
+                seed = seeded_operations[-1]
+                try:
+                    balance = Decimal(str(seed.fuel_balance).replace(",", "."))
+                except InvalidOperation:
+                    continue
+                seed_index = operations.index(seed)
+
+                for operation in operations[seed_index + 1:]:
+                    balance = DatabaseService._balance_after_operation(balance, operation)
+                    operation.fuel_balance = DatabaseService._format_balance(balance)
+                    updated += 1
+
+                balance = Decimal(str(seed.fuel_balance).replace(",", "."))
+                for operation in reversed(operations[:seed_index]):
+                    balance = DatabaseService._balance_before_operation(balance, operation)
+                    operation.fuel_balance = DatabaseService._format_balance(balance)
+                    updated += 1
+
+            await session.commit()
+            return updated
+
+    @staticmethod
+    def _movement(operation):
+        value = operation.quantity if operation.operation_type == "0" else operation.amount
+        try:
+            return Decimal(str(value).replace(",", "."))
+        except (InvalidOperation, AttributeError):
+            return Decimal("0")
+
+    @staticmethod
+    def _balance_after_operation(balance: Decimal, operation) -> Decimal:
+        movement = DatabaseService._movement(operation)
+        return balance - movement if operation.operation_type == "0" else balance + movement
+
+    @staticmethod
+    def _balance_before_operation(balance: Decimal, operation) -> Decimal:
+        movement = DatabaseService._movement(operation)
+        return balance + movement if operation.operation_type == "0" else balance - movement
+
+    @staticmethod
+    def _format_balance(balance: Decimal) -> str:
+        return format(balance.quantize(Decimal("0.01")), "f")
+
+    @staticmethod
+    def _operation_datetime(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        for pattern in ("%d.%m.%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(value.strip(), pattern)
+            except ValueError:
+                continue
+        return None
