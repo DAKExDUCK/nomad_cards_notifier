@@ -40,6 +40,7 @@ class FuelOperationRecord:
     card_number: str | None
     holder: str | None
     contract: str | None
+    fuel_balance: str | None = None
 
 
 class _CardsPageParser(HTMLParser):
@@ -234,9 +235,12 @@ class NomadCardsCollector:
                 operation_count += await DatabaseService.save_card_snapshot(
                     card, top_ups, inserted_operations
                 )
+            await DatabaseService.recalculate_fuel_balances(days=60)
 
         if inserted_operations and self.notify:
-            await self.notify(self._format_notification(inserted_operations))
+            notification = self._format_notification(inserted_operations)
+            for chunk in self._split_notification(notification):
+                await self.notify(chunk)
         return operation_count
 
     def _format_notification(self, operations: list[FuelOperationRecord]) -> str:
@@ -278,6 +282,24 @@ class NomadCardsCollector:
                 f"👤 <i>{holder}</i>"
             )
         return "\n\n".join(messages)
+
+    @staticmethod
+    def _split_notification(text: str, max_length: int = 4000) -> list[str]:
+        blocks = text.split("\n\n")
+        chunks: list[str] = []
+        current: list[str] = []
+        current_length = 0
+        for block in blocks:
+            block_length = len(block) + (2 if current else 0)
+            if current and current_length + block_length > max_length:
+                chunks.append("\n\n".join(current))
+                current = []
+                current_length = 0
+            current.append(block)
+            current_length += len(block) + (2 if len(current) > 1 else 0)
+        if current:
+            chunks.append("\n\n".join(current))
+        return chunks
 
     @staticmethod
     def _normalize_station_name(name: str) -> str:

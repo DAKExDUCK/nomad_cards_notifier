@@ -54,7 +54,7 @@ async def main() -> None:
         logger.info("Collector run completed")
     finally:
         await close_db()
-        await bot.close()
+        await bot.session.close()
 
 
 if __name__ == "__main__":
