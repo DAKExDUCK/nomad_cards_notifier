@@ -27,6 +27,16 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: nomad_cards
+      NOMAD_COLLECTOR_ENABLED: "${NOMAD_COLLECTOR_ENABLED:-false}"
+      NOMAD_BASE_URL: "${NOMAD_BASE_URL:-https://ur.nomadoil.kz}"
+      NOMAD_USERNAME: "${NOMAD_USERNAME}"
+      NOMAD_PASSWORD: "${NOMAD_PASSWORD}"
+      NOMAD_CLID: "${NOMAD_CLID}"
+      NOMAD_NOTIFY_CHAT_ID: "${NOMAD_NOTIFY_CHAT_ID}"
+      NOMAD_COLLECT_INTERVAL: "${NOMAD_COLLECT_INTERVAL:-300}"
+      NOMAD_SALES_FROM: "${NOMAD_SALES_FROM:-}"
+      NOMAD_SALES_TO: "${NOMAD_SALES_TO:-}"
+      NOMAD_STATION_URLS: "${NOMAD_STATION_URLS:-{}}"
     depends_on:
       postgres:
         condition: service_healthy
