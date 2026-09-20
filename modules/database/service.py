@@ -1,5 +1,6 @@
 from . import async_session
 from datetime import datetime, timedelta
+from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
@@ -171,8 +172,11 @@ class DatabaseService:
                     for operations in operations_by_card.values()
                     for operation in operations
                 }
-                for record in operation_records:
-                    record.fuel_balance = balances.get(record.external_id)
+                for index, record in enumerate(operation_records):
+                    operation_records[index] = replace(
+                        record,
+                        fuel_balance=balances.get(record.external_id),
+                    )
 
             await session.commit()
             return updated
