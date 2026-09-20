@@ -282,10 +282,10 @@ class NomadCardsCollector:
                 f"🛢️ Топливо: <b>{fuel}</b>\n"
                 f"📏 Объём: <b>{quantity} л</b>\n"
                 f"💵 Сумма: <b>{amount} ₸</b>\n"
-                f"📊 Остаток: <b>{balance}</b>\n"
                 f"🔢 Транзакция: <code>{transaction}</code>\n"
                 f"🕒 <i>{date_text}</i>\n"
-                f"👤 <i>{holder}</i>"
+                f"👤 <i>{holder}</i>\n"
+                f"📊 Остаток: <b>{balance} л</b>\n"
             )
         return "\n\n".join(messages)
 
@@ -339,7 +339,7 @@ class NomadCardsCollector:
             return await response.text()
 
     async def _get_sales(self, session: aiohttp.ClientSession) -> str:
-        start = self.sales_from or (date.today() - timedelta(days=1)).strftime("%d.%m.%Y")
+        start = self.sales_from or (date.today() - timedelta(days=30)).strftime("%d.%m.%Y")
         end = self.sales_to or date.today().strftime("%d.%m.%Y")
         url = urljoin(f"{self.base_url}/", "sales1")
         data = {

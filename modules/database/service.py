@@ -156,13 +156,13 @@ class DatabaseService:
                 seed_index = operations.index(seed)
 
                 for operation in operations[seed_index + 1:]:
-                    balance = DatabaseService._balance_after_operation(balance, operation)
+                    balance += DatabaseService._signed_movement(operation)
                     operation.fuel_balance = DatabaseService._format_balance(balance)
                     updated += 1
 
                 balance = Decimal(str(seed.fuel_balance).replace(",", "."))
                 for operation in reversed(operations[:seed_index]):
-                    balance = DatabaseService._balance_before_operation(balance, operation)
+                    balance -= DatabaseService._signed_movement(operation)
                     operation.fuel_balance = DatabaseService._format_balance(balance)
                     updated += 1
 
@@ -182,22 +182,13 @@ class DatabaseService:
             return updated
 
     @staticmethod
-    def _movement(operation):
+    def _signed_movement(operation) -> Decimal:
         value = operation.quantity if operation.operation_type == "0" else operation.amount
         try:
-            return Decimal(str(value).replace(",", "."))
+            movement = Decimal(str(value).replace(",", "."))
         except (InvalidOperation, AttributeError):
-            return Decimal("0")
-
-    @staticmethod
-    def _balance_after_operation(balance: Decimal, operation) -> Decimal:
-        movement = DatabaseService._movement(operation)
-        return balance - movement if operation.operation_type == "0" else balance + movement
-
-    @staticmethod
-    def _balance_before_operation(balance: Decimal, operation) -> Decimal:
-        movement = DatabaseService._movement(operation)
-        return balance + movement if operation.operation_type == "0" else balance - movement
+            movement = Decimal("0")
+        return -movement if operation.operation_type == "0" else movement
 
     @staticmethod
     def _format_balance(balance: Decimal) -> str:
