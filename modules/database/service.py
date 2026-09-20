@@ -116,7 +116,10 @@ class DatabaseService:
             return inserted
 
     @staticmethod
-    async def recalculate_fuel_balances(days: int = 60) -> int:
+    async def recalculate_fuel_balances(
+        days: int = 60,
+        operation_records: list | None = None,
+    ) -> int:
         """Recalculate balances from the latest persisted balance per card."""
         since = datetime.now() - timedelta(days=days)
         async with async_session() as session:
@@ -161,6 +164,15 @@ class DatabaseService:
                     balance = DatabaseService._balance_before_operation(balance, operation)
                     operation.fuel_balance = DatabaseService._format_balance(balance)
                     updated += 1
+
+            if operation_records:
+                balances = {
+                    operation.external_id: operation.fuel_balance
+                    for operations in operations_by_card.values()
+                    for operation in operations
+                }
+                for record in operation_records:
+                    record.fuel_balance = balances.get(record.external_id)
 
             await session.commit()
             return updated

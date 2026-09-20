@@ -235,7 +235,10 @@ class NomadCardsCollector:
                 operation_count += await DatabaseService.save_card_snapshot(
                     card, top_ups, inserted_operations
                 )
-            await DatabaseService.recalculate_fuel_balances(days=60)
+            await DatabaseService.recalculate_fuel_balances(
+                days=60,
+                operation_records=inserted_operations,
+            )
 
         if inserted_operations and self.notify:
             notification = self._format_notification(inserted_operations)
@@ -251,6 +254,7 @@ class NomadCardsCollector:
             amount = escape(operation.amount or "Не указано")
             fuel = escape(operation.fuel or "Не указано")
             holder = escape(operation.holder or "Не указано")
+            balance = escape(operation.fuel_balance or "Не указано")
 
             if operation.operation_type == "1":
                 messages.append(
@@ -258,6 +262,7 @@ class NomadCardsCollector:
                     f"💳 Карта: <code>{card}</code>\n"
                     f"🛢️ Продукт: <b>{fuel}</b>\n"
                     f"💵 Сумма: <b>{amount} ₸</b>\n"
+                    f"📊 Остаток: <b>{balance}</b>\n"
                     f"🕒 <i>{date_text}</i>\n"
                     f"👤 <i>{holder}</i>"
                 )
@@ -277,6 +282,7 @@ class NomadCardsCollector:
                 f"🛢️ Топливо: <b>{fuel}</b>\n"
                 f"📏 Объём: <b>{quantity} л</b>\n"
                 f"💵 Сумма: <b>{amount} ₸</b>\n"
+                f"📊 Остаток: <b>{balance}</b>\n"
                 f"🔢 Транзакция: <code>{transaction}</code>\n"
                 f"🕒 <i>{date_text}</i>\n"
                 f"👤 <i>{holder}</i>"
