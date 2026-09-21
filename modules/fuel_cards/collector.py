@@ -338,7 +338,7 @@ class NomadCardsCollector:
 
     async def _get_sales(self, session: aiohttp.ClientSession) -> str:
         start = self.sales_from or (date.today() - timedelta(days=30)).strftime("%d.%m.%Y")
-        end = self.sales_to or date.today().strftime("%d.%m.%Y")
+        end = self.sales_to or date.today().strftime("%d.%m.%Y 23:59:59")
         url = urljoin(f"{self.base_url}/", "sales1")
         data = {
             "clid": self.clid,
