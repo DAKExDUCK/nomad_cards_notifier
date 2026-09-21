@@ -1,5 +1,6 @@
 import json
 import logging.config
+import os
 from functools import wraps
 from typing import Any, Callable, Mapping
 
@@ -15,6 +16,7 @@ class Logger:
     def load_config(cls) -> None:
         if not cls._config_loaded:
             try:
+                os.makedirs("logs", exist_ok=True)
                 with open("logger_config.json", "r", encoding="UTF-8") as config_file:
                     cls._config = json.load(config_file)
                     cls._config_loaded = True
@@ -71,3 +73,14 @@ class Logger:
         extra: Mapping[str, object] | None = None,
     ) -> None:
         cls.logger.info(msg=msg, exc_info=exc_info, stack_info=stack_info, stacklevel=stacklevel, extra=extra)
+
+    @classmethod
+    def debug(  # pylint: disable=arguments-differ, arguments-renamed
+        cls,
+        msg: object,
+        exc_info=None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Mapping[str, object] | None = None,
+    ) -> None:
+        cls.logger.debug(msg=msg, exc_info=exc_info, stack_info=stack_info, stacklevel=stacklevel, extra=extra)
