@@ -4,6 +4,7 @@ from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from .dal import AccountDAL, UserDAL
 from .models import Account, FuelCard, FuelCardOperation, User
 
@@ -70,29 +71,30 @@ class DatabaseService:
     async def save_card_snapshot(card_record, operation_records, inserted_records=None) -> int:
         """Store a card and insert only operations not seen before."""
         async with async_session() as session:
-            card = await session.scalar(select(FuelCard).where(FuelCard.external_id == card_record.external_id))
-            if card is None:
-                card = FuelCard(
+            card_statement = (
+                insert(FuelCard)
+                .values(
                     external_id=card_record.external_id,
                     name=card_record.name,
                     detail_url=card_record.url,
                 )
-                session.add(card)
-                await session.flush()
-            else:
-                card.name = card_record.name
-                card.detail_url = card_record.url
+                .on_conflict_do_update(
+                    index_elements=[FuelCard.external_id],
+                    set_={
+                        "name": card_record.name,
+                        "detail_url": card_record.url,
+                    },
+                )
+                .returning(FuelCard.id)
+            )
+            card_id = (await session.execute(card_statement)).scalar_one()
 
             inserted = 0
             for record in operation_records:
-                exists = await session.scalar(
-                    select(FuelCardOperation.id).where(FuelCardOperation.external_id == record.external_id)
-                )
-                if exists is not None:
-                    continue
-                session.add(
-                    FuelCardOperation(
-                        card_id=card.id,
+                operation_statement = (
+                    insert(FuelCardOperation)
+                    .values(
+                        card_id=card_id,
                         external_id=record.external_id,
                         occurred_at=record.occurred_at,
                         occurred_at_datetime=DatabaseService._operation_datetime(record.occurred_at),
@@ -110,10 +112,14 @@ class DatabaseService:
                         contract=record.contract,
                         fuel_balance=record.fuel_balance,
                     )
+                    .on_conflict_do_nothing(index_elements=[FuelCardOperation.external_id])
+                    .returning(FuelCardOperation.id)
                 )
-                if inserted_records is not None:
-                    inserted_records.append(record)
-                inserted += 1
+                operation_id = (await session.execute(operation_statement)).scalar_one_or_none()
+                if operation_id is not None:
+                    if inserted_records is not None:
+                        inserted_records.append(record)
+                    inserted += 1
             await session.commit()
             return inserted
 
