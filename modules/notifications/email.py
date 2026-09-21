@@ -20,10 +20,11 @@ class EmailSettings:
     sender: str
     recipients: tuple[str, ...]
     use_tls: bool = True
+    send_enabled: bool = True
 
     @property
     def enabled(self) -> bool:
-        return bool(self.host and self.sender and self.recipients)
+        return self.send_enabled and bool(self.host and self.sender and self.recipients)
 
     @classmethod
     def from_env(cls) -> "EmailSettings":
@@ -40,6 +41,7 @@ class EmailSettings:
             sender=os.getenv("SMTP_FROM") or os.getenv("SMTP_USERNAME", ""),
             recipients=recipients,
             use_tls=os.getenv("SMTP_USE_TLS", "true").lower() == "true",
+            send_enabled=os.getenv("SMTP_ENABLED", "false").lower() == "true",
         )
 
 
