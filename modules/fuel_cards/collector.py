@@ -217,7 +217,6 @@ class NomadCardsCollector:
             Logger.info(f"Found {len(operations)} operations")
             cards_by_number = {card.external_id: card for card in cards}
             operation_count = 0
-            inserted_operations: list[FuelOperationRecord] = []
             for operation in operations:
                 card_number = operation.card_number or operation.card_external_id
                 card = cards_by_number.get(card_number) or FuelCardRecord(
@@ -226,24 +225,27 @@ class NomadCardsCollector:
                     url=urljoin(f"{self.base_url}/", f"card/1/{card_number}"),
                 )
                 operation_count += await DatabaseService.save_card_snapshot(
-                    card, [operation], inserted_operations
+                    card, [operation]
                 )
 
             for card in cards:
                 detail_html = await self._get_text(session, card.url)
                 top_ups = self._parse_card_operations(detail_html, card.external_id)
                 operation_count += await DatabaseService.save_card_snapshot(
-                    card, top_ups, inserted_operations
+                    card, top_ups
                 )
             await DatabaseService.recalculate_fuel_balances(
                 days=60,
-                operation_records=inserted_operations,
             )
 
-        if inserted_operations and self.notify:
-            notification = self._format_notification(inserted_operations)
+        pending_operations = await DatabaseService.get_pending_notification_operations()
+        if pending_operations and self.notify:
+            notification = self._format_notification(pending_operations)
             for chunk in self._split_notification(notification):
                 await self.notify(chunk)
+            await DatabaseService.mark_notifications_sent(
+                [operation.id for operation in pending_operations]
+            )
         return operation_count
 
     def _format_notification(self, operations: list[FuelOperationRecord]) -> str:
@@ -259,6 +261,7 @@ class NomadCardsCollector:
             balance = escape(operation.fuel_balance or "Не указано")
 
             if operation.operation_type == "1":
+                quantity = escape(operation.quantity or "Не указано")
                 messages.append(
                     "💰 <b>Пополнение карты</b>\n"
                     f"💳 Карта: <code>{holder or card}</code>\n"

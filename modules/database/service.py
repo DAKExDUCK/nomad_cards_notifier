@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from .dal import AccountDAL, UserDAL
 from .models import Account, FuelCard, FuelCardOperation, User
@@ -181,6 +181,28 @@ class DatabaseService:
                 .limit(1)
             )
             return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_pending_notification_operations() -> list[FuelCardOperation]:
+        async with async_session() as session:
+            result = await session.execute(
+                select(FuelCardOperation)
+                .where(FuelCardOperation.notification_sent_at.is_(None))
+                .order_by(FuelCardOperation.id)
+            )
+            return list(result.scalars().all())
+
+    @staticmethod
+    async def mark_notifications_sent(operation_ids: list[int]) -> None:
+        if not operation_ids:
+            return
+        async with async_session() as session:
+            await session.execute(
+                update(FuelCardOperation)
+                .where(FuelCardOperation.id.in_(operation_ids))
+                .values(notification_sent_at=datetime.utcnow())
+            )
+            await session.commit()
 
     @staticmethod
     async def recalculate_fuel_balances(
