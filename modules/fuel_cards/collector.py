@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 from html import escape
 import re
+from time import perf_counter
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -200,6 +201,7 @@ class NomadCardsCollector:
         }
 
     async def run_once(self) -> int:
+        started_at = perf_counter()
         timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             Logger.info("Starting login process...")
@@ -246,6 +248,13 @@ class NomadCardsCollector:
             await DatabaseService.mark_notifications_sent(
                 [operation.id for operation in pending_operations]
             )
+        Logger.info(
+            "Collection completed: "
+            f"cards={len(cards)}, operations_found={len(operations)}, "
+            f"operations_inserted={operation_count}, "
+            f"notifications_pending={len(pending_operations)}, "
+            f"duration={perf_counter() - started_at:.2f}s"
+        )
         return operation_count
 
     def _format_notification(self, operations: list[FuelOperationRecord]) -> str:
