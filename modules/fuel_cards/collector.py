@@ -185,6 +185,7 @@ class NomadCardsCollector:
         sales_from: str | None = None,
         sales_to: str | None = None,
         station_urls: Mapping[str, str] | None = None,
+        on_error: Callable[[str, BaseException], Awaitable[None]] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.username = username
@@ -199,6 +200,7 @@ class NomadCardsCollector:
             for name, url in (station_urls or {}).items()
             if url
         }
+        self.on_error = on_error
 
     async def run_once(self) -> int:
         started_at = perf_counter()
@@ -327,8 +329,13 @@ class NomadCardsCollector:
                 await self.run_once()
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as error:
                 Logger.error("Fuel cards collection failed", exc_info=True)
+                if self.on_error:
+                    try:
+                        await self.on_error("fuel_cards_collector", error)
+                    except Exception:
+                        Logger.error("Failed to send collector error report", exc_info=True)
             await asyncio.sleep(self.interval_seconds)
 
     async def _login(self, session: aiohttp.ClientSession) -> None:

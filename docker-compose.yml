@@ -35,6 +35,13 @@ services:
       NOMAD_SALES_FROM: "${NOMAD_SALES_FROM:-}"
       NOMAD_SALES_TO: "${NOMAD_SALES_TO:-}"
       NOMAD_STATION_URLS: "${NOMAD_STATION_URLS:-{}}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      SMTP_TO: "${SMTP_TO:-}"
+      SMTP_USE_TLS: "${SMTP_USE_TLS:-true}"
     depends_on:
       postgres:
         condition: service_healthy

@@ -20,7 +20,7 @@ async def set_commands(bot: Bot):
     await bot.set_my_commands(commands, BotCommandScopeAllGroupChats())
 
 
-async def register_bot_handlers(bot: Bot, dp: Dispatcher):
+async def register_bot_handlers(bot: Bot, dp: Dispatcher, error_reporter=None):
     dp.message.middleware(ThrottlingMiddleware(limit=RATE, key_prefix="antiflood"))
     dp.callback_query.middleware(ThrottlingMiddleware(limit=RATE, key_prefix="antiflood"))
 
@@ -28,7 +28,7 @@ async def register_bot_handlers(bot: Bot, dp: Dispatcher):
     register_handlers_default(bot_router)
 
     errors_router = Router()
-    register_handlers_errors(errors_router)
+    register_handlers_errors(errors_router, error_reporter)
 
     dp.include_router(bot_router)
     dp.include_router(errors_router)

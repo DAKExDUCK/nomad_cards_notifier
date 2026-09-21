@@ -21,10 +21,18 @@ from modules.bot import register_bot_handlers
 from modules.database import close_db, init_db
 from modules.fuel_cards import NomadCardsCollector
 from modules.logger import Logger
+from modules.notifications import EmailNotifier, EmailSettings
 
 
 async def main():
     Logger.load_config()
+    email_notifier = EmailNotifier(EmailSettings.from_env())
+
+    async def report_error(context: str, error: BaseException) -> None:
+        try:
+            await email_notifier.report_exception(context, error)
+        except Exception:
+            Logger.error("Failed to send email error report", exc_info=True)
 
     # Initialize database
     await init_db()
@@ -34,7 +42,7 @@ async def main():
     bot = Bot(token=TOKEN)
     dp = Dispatcher()
 
-    await register_bot_handlers(bot, dp)
+    await register_bot_handlers(bot, dp, report_error)
     collector_task = None
 
     if NOMAD_COLLECTOR_ENABLED and NOMAD_USERNAME and NOMAD_PASSWORD and NOMAD_CLID and NOMAD_BOT_CHAT_ID:
@@ -56,6 +64,7 @@ async def main():
             sales_from=NOMAD_SALES_FROM,
             sales_to=NOMAD_SALES_TO,
             station_urls=NOMAD_STATION_URLS,
+            on_error=report_error,
         )
         collector_task = asyncio.create_task(collector.run_forever(), name="nomad-cards-collector")
         Logger.info("Nomad fuel-card collector started")
