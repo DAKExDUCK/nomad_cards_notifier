@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config import DB_URL
@@ -23,6 +24,14 @@ async def init_db():
     """Initialize database (create tables)"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Temporary compatibility migration for databases created before notification_sent_at.
+        # Remove this statement after every deployed database has been migrated.
+        await conn.execute(
+            text(
+                "ALTER TABLE fuel_card_operations "
+                "ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP"
+            )
+        )
 
 
 async def close_db():
