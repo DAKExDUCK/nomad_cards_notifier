@@ -1,4 +1,12 @@
-**/__pycache__
+.git
+.gitignore
+.env
+.venv
+venv
+__pycache__
+*.py[cod]
+*.log
+tests**/__pycache__
 **/.env
 **/venv
 **/.venv
