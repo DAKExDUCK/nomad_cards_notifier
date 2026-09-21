@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
 from aiogram import Bot, Dispatcher
@@ -7,9 +8,9 @@ from aiogram.types import LinkPreviewOptions
 from config import (
     NOMAD_BASE_URL,
     NOMAD_BOT_CHAT_ID,
+    NOMAD_CLID,
     NOMAD_COLLECT_INTERVAL,
     NOMAD_COLLECTOR_ENABLED,
-    NOMAD_CLID,
     NOMAD_PASSWORD,
     NOMAD_SALES_FROM,
     NOMAD_SALES_TO,
@@ -23,16 +24,51 @@ from modules.fuel_cards import NomadCardsCollector
 from modules.logger import Logger
 from modules.notifications import EmailNotifier, EmailSettings
 
+ErrorReporter = Callable[[str, BaseException], Awaitable[None]]
 
-async def main():
-    Logger.load_config()
-    email_notifier = EmailNotifier(EmailSettings.from_env())
+
+def _create_error_reporter() -> ErrorReporter:
+    notifier = EmailNotifier(EmailSettings.from_env())
 
     async def report_error(context: str, error: BaseException) -> None:
         try:
-            await email_notifier.report_exception(context, error)
+            await notifier.report_exception(context, error)
         except Exception:
             Logger.error("Failed to send email error report", exc_info=True)
+
+    return report_error
+
+
+def _create_collector(bot: Bot, report_error: ErrorReporter) -> NomadCardsCollector | None:
+    required_settings = (NOMAD_USERNAME, NOMAD_PASSWORD, NOMAD_CLID, NOMAD_BOT_CHAT_ID)
+    if not NOMAD_COLLECTOR_ENABLED or not all(required_settings):
+        return None
+
+    async def notify(text: str) -> None:
+        await bot.send_message(
+            chat_id=NOMAD_BOT_CHAT_ID,
+            text=text,
+            parse_mode="HTML",
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+        )
+
+    return NomadCardsCollector(
+        base_url=NOMAD_BASE_URL,
+        username=NOMAD_USERNAME,
+        password=NOMAD_PASSWORD,
+        clid=NOMAD_CLID,
+        notify=notify,
+        interval_seconds=NOMAD_COLLECT_INTERVAL,
+        sales_from=NOMAD_SALES_FROM,
+        sales_to=NOMAD_SALES_TO,
+        station_urls=NOMAD_STATION_URLS,
+        on_error=report_error,
+    )
+
+
+async def main() -> None:
+    Logger.load_config()
+    report_error = _create_error_reporter()
 
     # Initialize database
     await init_db()
@@ -43,30 +79,10 @@ async def main():
     dp = Dispatcher()
 
     await register_bot_handlers(bot, dp, report_error)
-    collector_task = None
 
-    if NOMAD_COLLECTOR_ENABLED and NOMAD_USERNAME and NOMAD_PASSWORD and NOMAD_CLID and NOMAD_BOT_CHAT_ID:
-        async def notify(text: str) -> None:
-            await bot.send_message(
-                chat_id=NOMAD_BOT_CHAT_ID,
-                text=text,
-                parse_mode="HTML",
-                link_preview_options=LinkPreviewOptions(is_disabled=True),
-            )
-
-        collector = NomadCardsCollector(
-            base_url=NOMAD_BASE_URL,
-            username=NOMAD_USERNAME,
-            password=NOMAD_PASSWORD,
-            clid=NOMAD_CLID,
-            notify=notify,
-            interval_seconds=NOMAD_COLLECT_INTERVAL,
-            sales_from=NOMAD_SALES_FROM,
-            sales_to=NOMAD_SALES_TO,
-            station_urls=NOMAD_STATION_URLS,
-            on_error=report_error,
-        )
-        collector_task = asyncio.create_task(collector.run_forever(), name="nomad-cards-collector")
+    collector = _create_collector(bot, report_error)
+    collector_task = asyncio.create_task(collector.run_forever(), name="nomad-cards-collector") if collector else None
+    if collector_task:
         Logger.info("Nomad fuel-card collector started")
 
     try:

@@ -9,9 +9,7 @@ def test_parse_cards_extracts_card_identity_and_absolute_url():
     </tr></table>
     """
 
-    cards = NomadCardsCollector(
-        "https://example.test", "user", "password", "client"
-    )._parse_cards(html)
+    cards = NomadCardsCollector("https://example.test", "user", "password", "client")._parse_cards(html)
 
     assert cards == [FuelCardRecord("CARD-42", "Main card", "https://example.test/card/1/CARD-42")]
 

@@ -1,6 +1,6 @@
-from html import escape
 import re
 from datetime import datetime, timezone
+from html import escape
 
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
@@ -38,10 +38,7 @@ def _is_message_not_modified(error: TelegramBadRequest) -> bool:
 
 
 def _cards_selection_text() -> str:
-    return (
-        "💳 <b>Ваши карты</b>\n\n"
-        "Выберите карту, чтобы посмотреть остаток и последние операции:"
-    )
+    return "💳 <b>Ваши карты</b>\n\n" "Выберите карту, чтобы посмотреть остаток и последние операции:"
 
 
 def _station_link(station: str | None) -> str:
@@ -69,9 +66,7 @@ def _operation_text(operation) -> str:
     movement = (
         f"{operation.quantity} л"
         if operation.quantity
-        else f"{operation.amount} ₸"
-        if operation.amount
-        else "данные об объёме не указаны"
+        else f"{operation.amount} ₸" if operation.amount else "данные об объёме не указаны"
     )
     date_text = operation.occurred_at or "дата не указана"
     if operation.occurred_at:
@@ -95,10 +90,7 @@ async def get_balance(message: types.Message) -> None:
             return
         lines = ["⛽ <b>Баланс топлива</b>", ""]
         for card, balance in cards:
-            lines.append(
-                f"💳 <b>{escape(card.name)}</b>\n"
-                f"   Остаток: <b>{escape(_format_balance(balance))}</b>"
-            )
+            lines.append(f"💳 <b>{escape(card.name)}</b>\n" f"   Остаток: <b>{escape(_format_balance(balance))}</b>")
         updated_at = max((card.updated_at for card, _ in cards), default=None)
         lines.extend(("", f"Обновлено: {_format_updated_at(updated_at)}"))
         await message.answer(
@@ -224,10 +216,7 @@ async def refresh_balance(query: types.CallbackQuery) -> None:
             return
         lines = ["⛽ <b>Баланс топлива</b>", ""]
         for card, balance in cards:
-            lines.append(
-                f"💳 <b>{escape(card.name)}</b>\n"
-                f"   Остаток: <b>{escape(_format_balance(balance))}</b>"
-            )
+            lines.append(f"💳 <b>{escape(card.name)}</b>\n" f"   Остаток: <b>{escape(_format_balance(balance))}</b>")
         updated_at = max((card.updated_at for card, _ in cards), default=None)
         lines.extend(("", f"Обновлено: {_format_updated_at(updated_at)}"))
         await query.message.edit_text(

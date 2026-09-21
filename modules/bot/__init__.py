@@ -1,5 +1,5 @@
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeAllGroupChats
+from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeChat
 
 from config import NOMAD_BOT_CHAT_ID, RATE
 from modules.bot.handlers.errors import register_handlers_errors

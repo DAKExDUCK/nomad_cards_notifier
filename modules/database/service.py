@@ -1,10 +1,11 @@
-from . import async_session
-from datetime import datetime, timedelta
 from dataclasses import replace
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
+
+from . import async_session
 from .dal import AccountDAL, UserDAL
 from .models import Account, FuelCard, FuelCardOperation, User
 
@@ -146,8 +147,7 @@ class DatabaseService:
                 .scalar_subquery()
             )
             result = await session.execute(
-                select(FuelCard, balance_subquery.label("fuel_balance"))
-                .order_by(FuelCard.id)
+                select(FuelCard, balance_subquery.label("fuel_balance")).order_by(FuelCard.id)
             )
             return list(result.all())
 
@@ -213,16 +213,12 @@ class DatabaseService:
         since = datetime.now() - timedelta(days=days)
         async with async_session() as session:
             rows = (
-                await session.execute(
-                    select(FuelCard.external_id, FuelCardOperation)
-                    .join(FuelCardOperation.card)
-                )
+                await session.execute(select(FuelCard.external_id, FuelCardOperation).join(FuelCardOperation.card))
             ).all()
             operations_by_card = {}
             for card_number, operation in rows:
-                occurred_at = (
-                    operation.occurred_at_datetime
-                    or DatabaseService._operation_datetime(operation.occurred_at)
+                occurred_at = operation.occurred_at_datetime or DatabaseService._operation_datetime(
+                    operation.occurred_at
                 )
                 if occurred_at is not None and occurred_at >= since:
                     operations_by_card.setdefault(card_number, []).append(operation)
@@ -236,9 +232,7 @@ class DatabaseService:
                         or datetime.min
                     )
                 )
-                seeded_operations = [
-                    operation for operation in operations if operation.fuel_balance is not None
-                ]
+                seeded_operations = [operation for operation in operations if operation.fuel_balance is not None]
                 if not seeded_operations:
                     continue
 
@@ -249,7 +243,7 @@ class DatabaseService:
                     continue
                 seed_index = operations.index(seed)
 
-                for operation in operations[seed_index + 1:]:
+                for operation in operations[seed_index + 1 :]:
                     balance += DatabaseService._signed_movement(operation)
                     operation.fuel_balance = DatabaseService._format_balance(balance)
                     updated += 1

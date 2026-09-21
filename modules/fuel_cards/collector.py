@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from html import escape
 import re
-from time import perf_counter
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
+from html import escape
 from html.parser import HTMLParser
+from time import perf_counter
 from urllib.parse import urljoin
 
 import aiohttp
@@ -196,9 +196,7 @@ class NomadCardsCollector:
         self.sales_from = sales_from
         self.sales_to = sales_to
         self.station_urls = {
-            self._normalize_station_name(name): url
-            for name, url in (station_urls or {}).items()
-            if url
+            self._normalize_station_name(name): url for name, url in (station_urls or {}).items() if url
         }
         self.on_error = on_error
 
@@ -228,16 +226,12 @@ class NomadCardsCollector:
                     name=operation.holder or card_number,
                     url=urljoin(f"{self.base_url}/", f"card/1/{card_number}"),
                 )
-                operation_count += await DatabaseService.save_card_snapshot(
-                    card, [operation]
-                )
+                operation_count += await DatabaseService.save_card_snapshot(card, [operation])
 
             for card in cards:
                 detail_html = await self._get_text(session, card.url)
                 top_ups = self._parse_card_operations(detail_html, card.external_id)
-                operation_count += await DatabaseService.save_card_snapshot(
-                    card, top_ups
-                )
+                operation_count += await DatabaseService.save_card_snapshot(card, top_ups)
             await DatabaseService.recalculate_fuel_balances(
                 days=60,
             )
@@ -247,9 +241,7 @@ class NomadCardsCollector:
             notification = self._format_notification(pending_operations)
             for chunk in self._split_notification(notification):
                 await self.notify(chunk)
-            await DatabaseService.mark_notifications_sent(
-                [operation.id for operation in pending_operations]
-            )
+            await DatabaseService.mark_notifications_sent([operation.id for operation in pending_operations])
         Logger.info(
             "Collection completed: "
             f"cards={len(cards)}, operations_found={len(operations)}, "
@@ -344,7 +336,7 @@ class NomadCardsCollector:
             login_url,
             data={"Username": self.username, "Password": self.password, "Login": "Login"},
             allow_redirects=False,
-            ssl=False
+            ssl=False,
         ) as response:
             if response.status != 302:
                 raise RuntimeError(f"Nomad login failed with status {response.status}")
@@ -377,8 +369,7 @@ class NomadCardsCollector:
         parser = _CardsPageParser()
         parser.feed(html)
         return [
-            FuelCardRecord(card.external_id, card.name, urljoin(f"{self.base_url}/", card.url))
-            for card in parser.cards
+            FuelCardRecord(card.external_id, card.name, urljoin(f"{self.base_url}/", card.url)) for card in parser.cards
         ]
 
     @staticmethod
@@ -444,7 +435,9 @@ class NomadCardsCollector:
                     continue
                 if any(value.upper() == "ИТОГО" for value in row):
                     continue
-                operation_text = row[operation_index] if operation_index is not None and len(row) > operation_index else ""
+                operation_text = (
+                    row[operation_index] if operation_index is not None and len(row) > operation_index else ""
+                )
                 amount = row[amount_index] if amount_index is not None and len(row) > amount_index else None
                 quantity = row[quantity_index] if quantity_index is not None and len(row) > quantity_index else None
                 if amount is None:

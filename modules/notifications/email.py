@@ -28,11 +28,7 @@ class EmailSettings:
 
     @classmethod
     def from_env(cls) -> "EmailSettings":
-        recipients = tuple(
-            address.strip()
-            for address in os.getenv("SMTP_TO", "").split(",")
-            if address.strip()
-        )
+        recipients = tuple(address.strip() for address in os.getenv("SMTP_TO", "").split(",") if address.strip())
         return cls(
             host=os.getenv("SMTP_HOST", ""),
             port=int(os.getenv("SMTP_PORT", "587")),

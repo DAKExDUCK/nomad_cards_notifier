@@ -27,10 +27,7 @@ async def init_db():
         # Temporary compatibility migration for databases created before notification_sent_at.
         # Remove this statement after every deployed database has been migrated.
         await conn.execute(
-            text(
-                "ALTER TABLE fuel_card_operations "
-                "ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP"
-            )
+            text("ALTER TABLE fuel_card_operations " "ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP")
         )
 
 
