@@ -238,7 +238,7 @@ class NomadCardsCollector:
 
         pending_operations = await DatabaseService.get_pending_notification_operations()
         if pending_operations and self.notify:
-            notification = self._format_notification(pending_operations)
+            notification = await self._format_notification(pending_operations)
             for chunk in self._split_notification(notification):
                 await self.notify(chunk)
             await DatabaseService.mark_notifications_sent([operation.id for operation in pending_operations])
@@ -251,27 +251,32 @@ class NomadCardsCollector:
         )
         return operation_count
 
-    def _format_notification(self, operations: list[FuelOperationRecord]) -> str:
+    async def _format_notification(self, operations: list[FuelOperationRecord]) -> str:
         messages = []
         for operation in operations:
-            card = escape(operation.card_number or operation.card_external_id)
+            card_id = operation.card_external_id
+            card = await DatabaseService.get_card_by_external_id(card_id)
+            card_label = escape(
+                (card.name or card.external_id if card else None)
+                or operation.holder
+                or operation.card_number
+                or card_id
+                or "Не указано"
+            )
             date_text = escape(operation.occurred_at or "Не указано")
             if operation.occurred_at:
                 date_text = f"{date_text}"
-            amount = escape(operation.amount or "Не указано")
             fuel = escape(operation.fuel or "Не указано")
-            holder = escape(operation.holder or "Не указано")
             balance = escape(operation.fuel_balance or "Не указано")
 
             if operation.operation_type == "1":
                 quantity = escape(operation.quantity or "Не указано")
                 messages.append(
                     "💰 <b>Пополнение карты</b>\n"
-                    f"💳 Карта: <code>{holder or card}</code>\n"
+                    f"💳 Карта: <code>{card_label}</code>\n"
                     f"🛢️ Топливо: <b>{fuel}</b>\n"
-                    f"💵 Сумма: <b>{amount} ₸</b>\n"
                     f"⛽ Обьем: <b>{quantity} л</b>\n"
-                    f"📊 Остаток: <b>{balance}</b>\n"
+                    f"📊 Остаток: <b>{balance} л</b>\n"
                     f"🕒 <i>{date_text}</i>\n"
                 )
                 continue
@@ -284,7 +289,7 @@ class NomadCardsCollector:
                 station = f'<a href="{escape(station_url, quote=True)}">{station}</a>'
             messages.append(
                 "⛽ <b>Расход топлива</b>\n"
-                f"💳 Карта: <code>{holder or card}</code>\n"
+                f"💳 Карта: <code>{card_label}</code>\n"
                 f"📍 АЗС: <b>{station}</b>\n"
                 f"🛢️ Топливо: <b>{fuel}</b>\n"
                 f"📏 Объём: <b>{quantity} л</b>\n"
