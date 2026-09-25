@@ -21,6 +21,7 @@ def cards_keyboard(cards) -> InlineKeyboardBuilder:
 def card_details_keyboard(card_id: int) -> InlineKeyboardBuilder:
     keyboard = InlineKeyboardBuilder()
     keyboard.button(text="🔄 Обновить", callback_data=f"card:refresh:{card_id}")
+    keyboard.button(text="✏️ Изменить остаток", callback_data=f"card:edit:{card_id}")
     keyboard.button(text="⬅️ Назад", callback_data="cards:back")
-    keyboard.adjust(1)
+    keyboard.adjust(1, 1, 1)
     return keyboard

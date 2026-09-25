@@ -1,10 +1,13 @@
 import re
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from html import escape
 
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.filters import Command, StateFilter
 from aiogram.types import LinkPreviewOptions
 
 from config import NOMAD_BOT_CHAT_ID, NOMAD_STATION_URLS, TZ
@@ -13,12 +16,26 @@ from modules.database import DatabaseService
 from modules.logger import Logger
 
 
+class BalanceEditState(StatesGroup):
+    waiting_for_value = State()
+
+
 def _allowed(chat_id: int) -> bool:
     return NOMAD_BOT_CHAT_ID != 0 and chat_id == NOMAD_BOT_CHAT_ID
 
 
 def _format_balance(balance: str | None) -> str:
     return f"{balance} л" if balance else "не указан"
+
+
+def _parse_balance_value(raw_value: str) -> Decimal | None:
+    try:
+        value = Decimal(raw_value.strip().replace(",", "."))
+        if value < 0 or not value.is_finite():
+            return None
+    except InvalidOperation:
+        return None
+    return value
 
 
 def _format_updated_at(updated_at: datetime | None) -> str:
@@ -170,6 +187,45 @@ async def card_details(query: types.CallbackQuery) -> None:
         await query.answer("Не удалось загрузить данные карты", show_alert=True)
 
 
+async def edit_card_balance(query: types.CallbackQuery, state: FSMContext) -> None:
+    if not query.message or isinstance(query.message, types.InaccessibleMessage):
+        return
+    if not _allowed(query.message.chat.id) or not query.data:
+        await query.answer()
+        return
+    try:
+        card_id = int(query.data.split(":")[2])
+    except (IndexError, ValueError):
+        await query.answer("Некорректная карта", show_alert=True)
+        return
+    await state.set_state(BalanceEditState.waiting_for_value)
+    await state.update_data(card_id=card_id)
+    await query.message.answer("Введите текущий остаток карты в литрах, например: 1250.50")
+    await query.answer()
+
+
+async def save_card_balance(message: types.Message, state: FSMContext) -> None:
+    if not _allowed(message.chat.id):
+        return
+    value = _parse_balance_value(message.text or "")
+    if value is None:
+        await message.answer("Введите неотрицательное число литров, например: 1250.50")
+        return
+
+    data = await state.get_data()
+    card_id = data.get("card_id")
+    if not isinstance(card_id, int):
+        await state.clear()
+        await message.answer("Редактирование остатка устарело. Откройте карточку заново.")
+        return
+    saved = await DatabaseService.set_card_balance(card_id, format(value, "f"))
+    await state.clear()
+    if not saved:
+        await message.answer("У этой карты пока нет транзакций для привязки остатка.")
+        return
+    await message.answer("Остаток сохранён. Обновите карточку, чтобы увидеть историю.")
+
+
 async def cards_back(query: types.CallbackQuery) -> None:
     if not query.message or isinstance(query.message, types.InaccessibleMessage):
         return
@@ -248,7 +304,9 @@ async def refresh_cards(query: types.CallbackQuery) -> None:
 def register_handlers_default(router: Router) -> None:
     router.message.register(get_balance, Command("get_balance"))
     router.message.register(get_cards, Command("get_cards"))
+    router.message.register(save_card_balance, StateFilter(BalanceEditState.waiting_for_value))
     router.callback_query.register(refresh_balance, F.data == "balance:refresh")
     router.callback_query.register(refresh_cards, F.data == "cards:refresh")
     router.callback_query.register(cards_back, F.data == "cards:back")
+    router.callback_query.register(edit_card_balance, F.data.startswith("card:edit:"))
     router.callback_query.register(card_details, F.data.startswith("card:"))

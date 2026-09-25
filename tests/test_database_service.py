@@ -1,6 +1,7 @@
 from datetime import datetime
 from types import SimpleNamespace
 
+from modules.bot.handlers.default import _parse_balance_value
 from modules.database.service import DatabaseService
 
 
@@ -11,6 +12,12 @@ def test_operation_datetime_parses_supported_formats():
 
 def test_operation_datetime_returns_none_for_invalid_value():
     assert DatabaseService._operation_datetime("not-a-date") is None
+
+
+def test_parse_balance_value_accepts_decimal_comma_and_rejects_invalid_values():
+    assert str(_parse_balance_value("1250,50")) == "1250.50"
+    assert _parse_balance_value("-1") is None
+    assert _parse_balance_value("not-a-number") is None
 
 
 def test_operation_sort_key_uses_occurred_at_before_created_at():

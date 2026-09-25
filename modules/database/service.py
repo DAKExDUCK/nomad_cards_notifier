@@ -192,6 +192,30 @@ class DatabaseService:
             return result.scalar_one_or_none()
 
     @staticmethod
+    async def set_card_balance(card_id: int, balance: str) -> bool:
+        async with async_session() as session:
+            result = await session.execute(
+                select(FuelCardOperation)
+                .where(FuelCardOperation.card_id == card_id)
+                .order_by(
+                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
+                    FuelCardOperation.created_at.desc().nullslast(),
+                    FuelCardOperation.id.desc(),
+                )
+                .limit(1)
+            )
+            operation = result.scalar_one_or_none()
+            if operation is None:
+                return False
+            operation.fuel_balance = balance
+            operations_result = await session.execute(
+                select(FuelCardOperation).where(FuelCardOperation.card_id == card_id)
+            )
+            DatabaseService._recalculate_operation_balances(list(operations_result.scalars().all()))
+            await session.commit()
+            return True
+
+    @staticmethod
     async def get_pending_notification_operations() -> list[FuelCardOperation]:
         async with async_session() as session:
             result = await session.execute(
