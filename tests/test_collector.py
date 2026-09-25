@@ -150,3 +150,25 @@ def test_format_notification_escapes_card_label(monkeypatch):
     )
 
     assert "💳 Карта: <code>Card &lt;A&amp;B&gt;</code>" in message
+
+
+def test_format_notification_keeps_operations_as_separate_blocks(monkeypatch):
+    async def get_card(_external_id):
+        return None
+
+    monkeypatch.setattr(DatabaseService, "get_card_by_external_id", get_card)
+    operations = [
+        _operation_for_notification(quantity="300.00", fuel_balance="1300.00"),
+        _operation_for_notification(
+            external_id="operation-2",
+            occurred_at="23.09.2026 11:00:35",
+            quantity="200.00",
+            fuel_balance="1100.00",
+        ),
+    ]
+
+    message = asyncio.run(
+        NomadCardsCollector("https://example.test", "user", "password", "client")._format_notification(operations)
+    )
+
+    assert len(message.split("\n\n")) == 2

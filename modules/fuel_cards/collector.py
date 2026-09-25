@@ -44,6 +44,9 @@ class FuelOperationRecord:
     fuel_balance: str | None = None
 
 
+NotificationResult = tuple[int, int]
+
+
 class _CardsPageParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
@@ -180,7 +183,8 @@ class NomadCardsCollector:
         username: str,
         password: str,
         clid: str,
-        notify: Callable[[str], Awaitable[None]] | None = None,
+        notify: Callable[[str], Awaitable[NotificationResult | None]] | None = None,
+        edit_notify: Callable[[int, int, str], Awaitable[None]] | None = None,
         interval_seconds: int = 300,
         sales_from: str | None = None,
         sales_to: str | None = None,
@@ -192,6 +196,7 @@ class NomadCardsCollector:
         self.password = password
         self.clid = clid
         self.notify = notify
+        self.edit_notify = edit_notify
         self.interval_seconds = interval_seconds
         self.sales_from = sales_from
         self.sales_to = sales_to
@@ -236,12 +241,24 @@ class NomadCardsCollector:
                 days=60,
             )
 
+        sent_operations = await DatabaseService.get_sent_notification_operations()
+        if self.edit_notify:
+            for operation in sent_operations:
+                if operation.notification_chat_id and operation.notification_message_id:
+                    notification = await self._format_notification([operation])
+                    await self.edit_notify(
+                        int(operation.notification_chat_id), operation.notification_message_id, notification
+                    )
+
         pending_operations = await DatabaseService.get_pending_notification_operations()
         if pending_operations and self.notify:
-            notification = await self._format_notification(pending_operations)
-            for chunk in self._split_notification(notification):
-                await self.notify(chunk)
-            await DatabaseService.mark_notifications_sent([operation.id for operation in pending_operations])
+            for operation in pending_operations:
+                notification = await self._format_notification([operation])
+                result = await self.notify(notification)
+                if result is None:
+                    continue
+                chat_id, message_id = result
+                await DatabaseService.mark_notification_sent(operation.id, chat_id, message_id)
         Logger.info(
             "Collection completed: "
             f"cards={len(cards)}, operations_found={len(operations)}, "

@@ -29,6 +29,12 @@ async def init_db():
         await conn.execute(
             text("ALTER TABLE fuel_card_operations " "ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP")
         )
+        await conn.execute(
+            text("ALTER TABLE fuel_card_operations ADD COLUMN IF NOT EXISTS notification_chat_id VARCHAR(100)")
+        )
+        await conn.execute(
+            text("ALTER TABLE fuel_card_operations ADD COLUMN IF NOT EXISTS notification_message_id INTEGER")
+        )
 
 
 async def close_db():

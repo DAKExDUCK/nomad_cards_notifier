@@ -221,19 +221,35 @@ class DatabaseService:
             result = await session.execute(
                 select(FuelCardOperation)
                 .where(FuelCardOperation.notification_sent_at.is_(None))
+                .order_by(
+                    FuelCardOperation.occurred_at_datetime.asc().nullslast(),
+                    FuelCardOperation.created_at.asc().nullslast(),
+                    FuelCardOperation.id.asc(),
+                )
+            )
+            return list(result.scalars().all())
+
+    @staticmethod
+    async def get_sent_notification_operations() -> list[FuelCardOperation]:
+        async with async_session() as session:
+            result = await session.execute(
+                select(FuelCardOperation)
+                .where(FuelCardOperation.notification_message_id.is_not(None))
                 .order_by(FuelCardOperation.id)
             )
             return list(result.scalars().all())
 
     @staticmethod
-    async def mark_notifications_sent(operation_ids: list[int]) -> None:
-        if not operation_ids:
-            return
+    async def mark_notification_sent(operation_id: int, chat_id: int, message_id: int) -> None:
         async with async_session() as session:
             await session.execute(
                 update(FuelCardOperation)
-                .where(FuelCardOperation.id.in_(operation_ids))
-                .values(notification_sent_at=datetime.utcnow())
+                .where(FuelCardOperation.id == operation_id)
+                .values(
+                    notification_sent_at=datetime.utcnow(),
+                    notification_chat_id=str(chat_id),
+                    notification_message_id=message_id,
+                )
             )
             await session.commit()
 

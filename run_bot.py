@@ -45,9 +45,19 @@ def _create_collector(bot: Bot, report_error: ErrorReporter) -> NomadCardsCollec
     if not NOMAD_COLLECTOR_ENABLED or not all(required_settings):
         return None
 
-    async def notify(text: str) -> None:
-        await bot.send_message(
+    async def notify(text: str) -> tuple[int, int]:
+        message = await bot.send_message(
             chat_id=NOMAD_BOT_CHAT_ID,
+            text=text,
+            parse_mode="HTML",
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+        )
+        return message.chat.id, message.message_id
+
+    async def edit_notify(chat_id: int, message_id: int, text: str) -> None:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
             text=text,
             parse_mode="HTML",
             link_preview_options=LinkPreviewOptions(is_disabled=True),
@@ -59,6 +69,7 @@ def _create_collector(bot: Bot, report_error: ErrorReporter) -> NomadCardsCollec
         password=NOMAD_PASSWORD,
         clid=NOMAD_CLID,
         notify=notify,
+        edit_notify=edit_notify,
         interval_seconds=NOMAD_COLLECT_INTERVAL,
         sales_from=NOMAD_SALES_FROM,
         sales_to=NOMAD_SALES_TO,
