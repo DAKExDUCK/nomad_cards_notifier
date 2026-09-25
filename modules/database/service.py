@@ -234,28 +234,7 @@ class DatabaseService:
 
             updated = 0
             for operations in operations_by_card.values():
-                operations.sort(key=DatabaseService._operation_sort_key)
-                seeded_operations = [operation for operation in operations if operation.fuel_balance is not None]
-                if not seeded_operations:
-                    continue
-
-                seed = seeded_operations[-1]
-                try:
-                    balance = Decimal(str(seed.fuel_balance).replace(",", "."))
-                except InvalidOperation:
-                    continue
-                seed_index = operations.index(seed)
-
-                for operation in operations[seed_index + 1 :]:
-                    balance += DatabaseService._signed_movement(operation)
-                    operation.fuel_balance = DatabaseService._format_balance(balance)
-                    updated += 1
-
-                balance = Decimal(str(seed.fuel_balance).replace(",", "."))
-                for index in range(seed_index - 1, -1, -1):
-                    balance -= DatabaseService._signed_movement(operations[index + 1])
-                    operations[index].fuel_balance = DatabaseService._format_balance(balance)
-                    updated += 1
+                updated += DatabaseService._recalculate_operation_balances(operations)
 
             if operation_records:
                 balances = {
@@ -290,6 +269,34 @@ class DatabaseService:
             operation.created_at or datetime.min,
             operation.id,
         )
+
+    @staticmethod
+    def _recalculate_operation_balances(operations: list) -> int:
+        operations.sort(key=DatabaseService._operation_sort_key)
+        seeded_operations = [operation for operation in operations if operation.fuel_balance is not None]
+        if not seeded_operations:
+            return 0
+
+        seed = seeded_operations[-1]
+        try:
+            balance = Decimal(str(seed.fuel_balance).replace(",", "."))
+        except InvalidOperation:
+            return 0
+        seed_index = operations.index(seed)
+        updated = 0
+
+        for operation in operations[seed_index + 1 :]:
+            balance += DatabaseService._signed_movement(operation)
+            operation.fuel_balance = DatabaseService._format_balance(balance)
+            updated += 1
+
+        balance = Decimal(str(seed.fuel_balance).replace(",", "."))
+        for index in range(seed_index - 1, -1, -1):
+            balance -= DatabaseService._signed_movement(operations[index + 1])
+            operations[index].fuel_balance = DatabaseService._format_balance(balance)
+            updated += 1
+
+        return updated
 
     @staticmethod
     def _format_balance(balance: Decimal) -> str:
