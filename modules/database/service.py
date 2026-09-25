@@ -140,6 +140,7 @@ class DatabaseService:
                     FuelCardOperation.fuel_balance.is_not(None),
                 )
                 .order_by(
+                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
                     FuelCardOperation.created_at.desc().nullslast(),
                     FuelCardOperation.id.desc(),
                 )
@@ -152,6 +153,12 @@ class DatabaseService:
             return list(result.all())
 
     @staticmethod
+    async def get_card_by_external_id(external_id: str) -> FuelCard | None:
+        async with async_session() as session:
+            result = await session.execute(select(FuelCard).where(FuelCard.external_id == external_id))
+            return result.scalar_one_or_none()
+
+    @staticmethod
     async def get_card_operations(card_id: int, limit: int = 10) -> list[FuelCardOperation]:
         async with async_session() as session:
             result = await session.execute(
@@ -159,6 +166,7 @@ class DatabaseService:
                 .where(FuelCardOperation.card_id == card_id)
                 .order_by(
                     FuelCardOperation.occurred_at_datetime.desc().nullslast(),
+                    FuelCardOperation.created_at.desc().nullslast(),
                     FuelCardOperation.id.desc(),
                 )
                 .limit(limit)
@@ -175,6 +183,7 @@ class DatabaseService:
                     FuelCardOperation.fuel_balance.is_not(None),
                 )
                 .order_by(
+                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
                     FuelCardOperation.created_at.desc().nullslast(),
                     FuelCardOperation.id.desc(),
                 )
@@ -225,7 +234,7 @@ class DatabaseService:
 
             updated = 0
             for operations in operations_by_card.values():
-                operations.sort(key=lambda operation: (operation.created_at or datetime.min, operation.id))
+                operations.sort(key=DatabaseService._operation_sort_key)
                 seeded_operations = [operation for operation in operations if operation.fuel_balance is not None]
                 if not seeded_operations:
                     continue
@@ -272,6 +281,15 @@ class DatabaseService:
         except (InvalidOperation, AttributeError):
             movement = Decimal("0")
         return -movement if operation.operation_type == "0" else movement
+
+    @staticmethod
+    def _operation_sort_key(operation) -> tuple[datetime, datetime, int]:
+        occurred_at = operation.occurred_at_datetime or DatabaseService._operation_datetime(operation.occurred_at)
+        return (
+            occurred_at or datetime.min,
+            operation.created_at or datetime.min,
+            operation.id,
+        )
 
     @staticmethod
     def _format_balance(balance: Decimal) -> str:
