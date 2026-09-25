@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from collections.abc import Awaitable, Callable
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import LinkPreviewOptions
@@ -8,9 +8,9 @@ from aiogram.types import LinkPreviewOptions
 from config import (
     NOMAD_BASE_URL,
     NOMAD_BOT_CHAT_ID,
-    NOMAD_CLID,
     NOMAD_COLLECT_INTERVAL,
     NOMAD_COLLECTOR_ENABLED,
+    NOMAD_CLID,
     NOMAD_PASSWORD,
     NOMAD_SALES_FROM,
     NOMAD_SALES_TO,
@@ -23,6 +23,7 @@ from modules.database import close_db, init_db
 from modules.fuel_cards import NomadCardsCollector
 from modules.logger import Logger
 from modules.notifications import EmailNotifier, EmailSettings
+
 
 ErrorReporter = Callable[[str, BaseException], Awaitable[None]]
 
