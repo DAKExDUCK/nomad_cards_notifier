@@ -16,8 +16,15 @@ def test_parse_cards_extracts_card_identity_and_absolute_url():
 
 def test_parse_card_operations_extracts_top_up():
     html = """
-    <table><tr><th>Дата</th><th>Операция</th><th>Продукт</th></tr>
-      <tr><td>01.09.2026 10:20:30</td><td>Пополнение 1 250,00</td><td>АИ-92</td></tr>
+    <table class="table table-striped"><tr>
+      <th>Дата</th><th>Продукт</th><th>Операция</th><th>Статус</th>
+    </tr>
+      <tr>
+        <td><small>Оформлено: 23.09.2026 10:00:35<br>Выполнено 23.09.2026 10:00:35 <b>Офис</b></small></td>
+        <td>ДТ</td>
+        <td><small>Пополнение баланса: 3000.00</small></td>
+        <td><span class="label label-success">выполнено</span></td>
+      </tr>
     </table>
     """
 
@@ -25,8 +32,10 @@ def test_parse_card_operations_extracts_top_up():
 
     assert len(operations) == 1
     assert operations[0].operation_type == "1"
-    assert operations[0].amount == "1250,00"
-    assert operations[0].fuel == "АИ-92"
+    assert operations[0].quantity == "3000.00"
+    assert operations[0].amount is None
+    assert operations[0].fuel == "ДТ"
+    assert operations[0].occurred_at == "23.09.2026 10:00:35"
 
 
 def test_split_notification_respects_maximum_length():

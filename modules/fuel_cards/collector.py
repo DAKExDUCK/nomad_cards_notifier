@@ -421,12 +421,8 @@ class NomadCardsCollector:
                 continue
             headers = [NomadCardsCollector._normalize_header(value) for value in table[0]]
             date_index = NomadCardsCollector._header_index(headers, "дат", "date", "время")
-            amount_index = NomadCardsCollector._header_index(headers, "сумм", "amount", "пополн", "зачисл")
-            quantity_index = NomadCardsCollector._header_index(
-                headers, "объем", "объём", "колич", "литр", "quantity", "volume"
-            )
-            operation_index = NomadCardsCollector._header_index(headers, "операц", "тип", "вид")
             product_index = NomadCardsCollector._header_index(headers, "продукт", "топливо", "product", "fuel")
+            operation_index = NomadCardsCollector._header_index(headers, "операц", "тип", "вид")
             if date_index is None or operation_index is None:
                 continue
 
@@ -435,14 +431,11 @@ class NomadCardsCollector:
                     continue
                 if any(value.upper() == "ИТОГО" for value in row):
                     continue
-                operation_text = (
-                    row[operation_index] if operation_index is not None and len(row) > operation_index else ""
+                operation_text = row[operation_index]
+                quantity_match = re.search(
+                    r"Пополнение\s+баланса\s*:\s*([-+]?\d[\d\s]*[.,]?\d*)", operation_text, re.IGNORECASE
                 )
-                amount = row[amount_index] if amount_index is not None and len(row) > amount_index else None
-                quantity = row[quantity_index] if quantity_index is not None and len(row) > quantity_index else None
-                if amount is None:
-                    amount_match = re.search(r"[-+]?\d[\d\s]*[.,]\d{2}", operation_text)
-                    amount = amount_match.group(0).replace(" ", "") if amount_match else None
+                quantity = quantity_match.group(1).replace(" ", "") if quantity_match else None
                 dates = re.findall(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", row[date_index])
                 occurred_at = dates[-1] if dates else row[date_index]
                 raw = "|".join(row)
@@ -453,7 +446,7 @@ class NomadCardsCollector:
                         card_external_id=card_external_id,
                         occurred_at=occurred_at,
                         operation_type="1",
-                        amount=amount,
+                        amount=None,
                         quantity=quantity,
                         station=None,
                         transaction_number=None,
