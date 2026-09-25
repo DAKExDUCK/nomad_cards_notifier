@@ -140,7 +140,7 @@ class DatabaseService:
                     FuelCardOperation.fuel_balance.is_not(None),
                 )
                 .order_by(
-                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
+                    FuelCardOperation.created_at.desc().nullslast(),
                     FuelCardOperation.id.desc(),
                 )
                 .limit(1)
@@ -175,7 +175,7 @@ class DatabaseService:
                     FuelCardOperation.fuel_balance.is_not(None),
                 )
                 .order_by(
-                    FuelCardOperation.occurred_at_datetime.desc().nullslast(),
+                    FuelCardOperation.created_at.desc().nullslast(),
                     FuelCardOperation.id.desc(),
                 )
                 .limit(1)
@@ -225,13 +225,7 @@ class DatabaseService:
 
             updated = 0
             for operations in operations_by_card.values():
-                operations.sort(
-                    key=lambda operation: (
-                        operation.occurred_at_datetime
-                        or DatabaseService._operation_datetime(operation.occurred_at)
-                        or datetime.min
-                    )
-                )
+                operations.sort(key=lambda operation: (operation.created_at or datetime.min, operation.id))
                 seeded_operations = [operation for operation in operations if operation.fuel_balance is not None]
                 if not seeded_operations:
                     continue
