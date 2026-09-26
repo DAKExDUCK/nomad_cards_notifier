@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, update
@@ -208,10 +208,13 @@ class DatabaseService:
             if operation is None:
                 return False
             operation.fuel_balance = balance
+            operation.fuel_balance_is_anchor = True
             operations_result = await session.execute(
                 select(FuelCardOperation).where(FuelCardOperation.card_id == card_id)
             )
-            DatabaseService._recalculate_operation_balances(list(operations_result.scalars().all()))
+            operations = list(operations_result.scalars().all())
+            DatabaseService._set_balance_anchor(operations, operation)
+            DatabaseService._recalculate_operation_balances(operations)
             await session.commit()
             return True
 
@@ -258,19 +261,14 @@ class DatabaseService:
         days: int = 60,
         operation_records: list | None = None,
     ) -> int:
-        """Recalculate balances from the latest persisted balance per card."""
-        since = datetime.now() - timedelta(days=days)
+        """Recalculate balances for the complete history; ``days`` is kept for compatibility."""
         async with async_session() as session:
             rows = (
                 await session.execute(select(FuelCard.external_id, FuelCardOperation).join(FuelCardOperation.card))
             ).all()
             operations_by_card = {}
             for card_number, operation in rows:
-                occurred_at = operation.occurred_at_datetime or DatabaseService._operation_datetime(
-                    operation.occurred_at
-                )
-                if occurred_at is not None and occurred_at >= since:
-                    operations_by_card.setdefault(card_number, []).append(operation)
+                operations_by_card.setdefault(card_number, []).append(operation)
 
             updated = 0
             for operations in operations_by_card.values():
@@ -313,7 +311,11 @@ class DatabaseService:
     @staticmethod
     def _recalculate_operation_balances(operations: list) -> int:
         operations.sort(key=DatabaseService._operation_sort_key)
-        seeded_operations = [operation for operation in operations if operation.fuel_balance is not None]
+        seeded_operations = [
+            operation
+            for operation in operations
+            if operation.fuel_balance is not None and getattr(operation, "fuel_balance_is_anchor", False)
+        ]
         if not seeded_operations:
             return 0
 
@@ -337,6 +339,11 @@ class DatabaseService:
             updated += 1
 
         return updated
+
+    @staticmethod
+    def _set_balance_anchor(operations: list, anchor) -> None:
+        for operation in operations:
+            operation.fuel_balance_is_anchor = operation is anchor
 
     @staticmethod
     def _format_balance(balance: Decimal) -> str:

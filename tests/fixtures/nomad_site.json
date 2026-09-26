@@ -1,0 +1,31 @@
+{
+  "cards": [
+    {
+      "external_id": "CARD-42",
+      "name": "Main card",
+      "top_ups": [
+        {
+          "occurred_at": "23.09.2026 10:00:35",
+          "fuel": "DT",
+          "quantity": "3000.00"
+        }
+      ]
+    }
+  ],
+  "sales": [
+    [
+      "23.09.2026 12:00:00",
+      "Station A",
+      "TX-1",
+      "1",
+      "DT",
+      "250.00",
+      "100.00",
+      "25000.00",
+      "Issuer",
+      "CARD-42",
+      "Main card",
+      "Contract"
+    ]
+  ]
+}

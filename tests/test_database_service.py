@@ -48,6 +48,7 @@ def test_recalculate_operation_balances_chains_multiple_top_ups():
             quantity="300",
             amount=None,
             fuel_balance="1000",
+            fuel_balance_is_anchor=True,
         ),
         SimpleNamespace(
             occurred_at="21.09.2026 11:00:00",
@@ -85,6 +86,18 @@ def test_recalculate_operation_balances_chains_multiple_top_ups():
     assert [operation.fuel_balance for operation in operations] == ["1000", "1500.00", "1700.00", "1500.00"]
 
 
+def test_set_balance_anchor_keeps_only_one_anchor():
+    operations = [
+        SimpleNamespace(id=1, fuel_balance="1000", fuel_balance_is_anchor=True),
+        SimpleNamespace(id=2, fuel_balance="1500", fuel_balance_is_anchor=True),
+        SimpleNamespace(id=3, fuel_balance="1700", fuel_balance_is_anchor=False),
+    ]
+
+    DatabaseService._set_balance_anchor(operations, operations[2])
+
+    assert [operation.fuel_balance_is_anchor for operation in operations] == [False, False, True]
+
+
 def test_recalculate_operation_balances_places_late_operation_by_occurred_at():
     late_loaded = SimpleNamespace(
         occurred_at="21.09.2026 11:00:00",
@@ -106,6 +119,7 @@ def test_recalculate_operation_balances_places_late_operation_by_occurred_at():
             quantity="300",
             amount=None,
             fuel_balance="1000",
+            fuel_balance_is_anchor=True,
         ),
         SimpleNamespace(
             occurred_at="21.09.2026 12:00:00",
@@ -122,4 +136,4 @@ def test_recalculate_operation_balances_places_late_operation_by_occurred_at():
 
     assert DatabaseService._recalculate_operation_balances(operations) == 2
     assert [operation.id for operation in operations] == [1, 3, 2]
-    assert [operation.fuel_balance for operation in operations] == ["500.00", "1000.00", "800"]
+    assert [operation.fuel_balance for operation in operations] == ["1000", "1500.00", "1300.00"]

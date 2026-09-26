@@ -35,6 +35,12 @@ async def init_db():
         await conn.execute(
             text("ALTER TABLE fuel_card_operations ADD COLUMN IF NOT EXISTS notification_message_id INTEGER")
         )
+        await conn.execute(
+            text(
+                "ALTER TABLE fuel_card_operations "
+                "ADD COLUMN IF NOT EXISTS fuel_balance_is_anchor BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
 
 
 async def close_db():

@@ -77,6 +77,7 @@ class FuelCardOperation(Base):
     holder = Column(String(255), nullable=True)
     contract = Column(String(255), nullable=True)
     fuel_balance = Column(String(100), nullable=True)
+    fuel_balance_is_anchor = Column(Boolean, default=False, nullable=False)
     notification_sent_at = Column(DateTime, nullable=True, index=True)
     notification_chat_id = Column(String(100), nullable=True)
     notification_message_id = Column(Integer, nullable=True)

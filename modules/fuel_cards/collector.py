@@ -237,9 +237,7 @@ class NomadCardsCollector:
                 detail_html = await self._get_text(session, card.url)
                 top_ups = self._parse_card_operations(detail_html, card.external_id)
                 operation_count += await DatabaseService.save_card_snapshot(card, top_ups)
-            await DatabaseService.recalculate_fuel_balances(
-                days=60,
-            )
+            await DatabaseService.recalculate_fuel_balances()
 
         sent_operations = await DatabaseService.get_sent_notification_operations()
         if self.edit_notify:
