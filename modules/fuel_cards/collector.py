@@ -269,7 +269,9 @@ class NomadCardsCollector:
     async def _format_notification(self, operations: list[FuelOperationRecord]) -> str:
         messages = []
         for operation in operations:
-            card_id = operation.card_external_id
+            card_id = getattr(operation, "card_external_id", None) or operation.card_number
+            if card_id is None and getattr(operation, "card", None) is not None:
+                card_id = operation.card.external_id
             card = await DatabaseService.get_card_by_external_id(card_id)
             card_label = escape(
                 (card.name or card.external_id if card else None)

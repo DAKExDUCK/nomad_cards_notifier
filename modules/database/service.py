@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import selectinload
 
 from . import async_session
 from .dal import AccountDAL, UserDAL
@@ -223,6 +224,7 @@ class DatabaseService:
         async with async_session() as session:
             result = await session.execute(
                 select(FuelCardOperation)
+                .options(selectinload(FuelCardOperation.card))
                 .where(FuelCardOperation.notification_sent_at.is_(None))
                 .order_by(
                     FuelCardOperation.occurred_at_datetime.asc().nullslast(),
@@ -237,6 +239,7 @@ class DatabaseService:
         async with async_session() as session:
             result = await session.execute(
                 select(FuelCardOperation)
+                .options(selectinload(FuelCardOperation.card))
                 .where(FuelCardOperation.notification_message_id.is_not(None))
                 .order_by(FuelCardOperation.id)
             )

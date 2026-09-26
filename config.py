@@ -59,7 +59,13 @@ DB_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_
 
 # Nomad fuel-card collector. It is disabled until explicitly configured.
 NOMAD_COLLECTOR_ENABLED = os.getenv("NOMAD_COLLECTOR_ENABLED", "false").lower() == "true"
-NOMAD_BASE_URL = _validate_url("NOMAD_BASE_URL", os.getenv("NOMAD_BASE_URL", "https://ur.nomadoil.kz"))
+IS_TEST = os.getenv("IS_TEST", os.getenv("is_test", "false")).strip().lower() == "true"
+NOMAD_TEST_BASE_URL = _validate_url("NOMAD_TEST_BASE_URL", os.getenv("NOMAD_TEST_BASE_URL", "http://127.0.0.1:8080"))
+NOMAD_BASE_URL = (
+    NOMAD_TEST_BASE_URL
+    if IS_TEST
+    else _validate_url("NOMAD_BASE_URL", os.getenv("NOMAD_BASE_URL", "https://ur.nomadoil.kz"))
+)
 NOMAD_USERNAME = os.getenv("NOMAD_USERNAME", "")
 NOMAD_PASSWORD = os.getenv("NOMAD_PASSWORD", "")
 NOMAD_CLID = os.getenv("NOMAD_CLID", "")

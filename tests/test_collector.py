@@ -1,4 +1,5 @@
 import asyncio
+from types import SimpleNamespace
 
 from modules.database import DatabaseService
 from modules.fuel_cards.collector import FuelCardRecord, FuelOperationRecord, NomadCardsCollector
@@ -172,3 +173,27 @@ def test_format_notification_keeps_operations_as_separate_blocks(monkeypatch):
     )
 
     assert len(message.split("\n\n")) == 2
+
+
+def test_format_notification_accepts_persisted_operation_with_related_card(monkeypatch):
+    async def get_card(external_id):
+        assert external_id == "CARD-42"
+        return None
+
+    monkeypatch.setattr(DatabaseService, "get_card_by_external_id", get_card)
+    operation = SimpleNamespace(
+        card_number=None,
+        card=SimpleNamespace(external_id="CARD-42"),
+        holder=None,
+        occurred_at="23.09.2026 10:00:35",
+        fuel="DT",
+        fuel_balance="3000.00",
+        operation_type="1",
+        quantity="3000.00",
+    )
+
+    message = asyncio.run(
+        NomadCardsCollector("https://example.test", "user", "password", "client")._format_notification([operation])
+    )
+
+    assert "💳 Карта: <code>CARD-42</code>" in message
