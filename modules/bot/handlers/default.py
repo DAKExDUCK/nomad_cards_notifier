@@ -13,6 +13,7 @@ from aiogram.types import LinkPreviewOptions
 from config import NOMAD_BOT_CHAT_ID, NOMAD_STATION_URLS, TZ
 from modules.bot.keyborads.default import balance_keyboard, card_details_keyboard, cards_keyboard
 from modules.database import DatabaseService
+from modules.fuel_cards.collector import NomadCardsCollector
 from modules.logger import Logger
 
 
@@ -218,12 +219,32 @@ async def save_card_balance(message: types.Message, state: FSMContext) -> None:
         await state.clear()
         await message.answer("Редактирование остатка устарело. Откройте карточку заново.")
         return
-    saved = await DatabaseService.set_card_balance(card_id, format(value, "f"))
+    changed_operation_ids: set[int] = set()
+    saved = await DatabaseService.set_card_balance(card_id, format(value, "f"), changed_operation_ids)
     await state.clear()
     if not saved:
         await message.answer("У этой карты пока нет транзакций для привязки остатка.")
         return
-    await message.answer("Остаток сохранён. Обновите карточку, чтобы увидеть историю.")
+    sent_operations = await DatabaseService.get_sent_notification_operations()
+    formatter = NomadCardsCollector("", "", "", "")
+    for operation in sent_operations:
+        if operation.id not in changed_operation_ids:
+            continue
+        if not operation.notification_chat_id or not operation.notification_message_id:
+            continue
+        notification = await formatter._format_notification([operation])
+        try:
+            await message.bot.edit_message_text(
+                chat_id=int(operation.notification_chat_id),
+                message_id=operation.notification_message_id,
+                text=notification,
+                parse_mode="HTML",
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
+            )
+        except TelegramBadRequest as error:
+            if not _is_message_not_modified(error):
+                _log_bot_error("edit_transaction_notification")
+    await message.answer("Остаток сохранён. История транзакций обновлена.")
 
 
 async def cards_back(query: types.CallbackQuery) -> None:

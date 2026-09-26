@@ -143,13 +143,13 @@ def test_collector_runs_full_collection_and_notification_pipeline(monkeypatch):
             inserted += 1
         return inserted
 
-    async def recalculate_fuel_balances(*, days=60, operation_records=None):
+    async def recalculate_fuel_balances(*, days=60, operation_records=None, changed_operation_ids=None):
         del days, operation_records
         operations_by_card = {}
         for operation in Store.operations.values():
             operations_by_card.setdefault(operation.card_id, []).append(operation)
         for operations in operations_by_card.values():
-            DatabaseService._recalculate_operation_balances(operations)
+            DatabaseService._recalculate_operation_balances(operations, changed_operation_ids)
         return 0
 
     async def get_card_by_external_id(external_id):
@@ -221,10 +221,10 @@ def test_collector_runs_full_collection_and_notification_pipeline(monkeypatch):
             assert response.status == 201
 
         assert asyncio.run(collector.run_once()) == 1
+        assert asyncio.run(collector.run_once()) == 0
 
-    assert len(edited) == 2
-    assert {message_id for _, message_id, _ in edited} == {100, 101}
-    assert "3000.00 л" in next(text for _, message_id, text in edited if message_id == 100)
+    assert len(edited) == 1
+    assert {message_id for _, message_id, _ in edited} == {101}
     assert "3400.00 л" in next(text for _, message_id, text in edited if message_id == 101)
     assert len(sent) == 3
     assert "3500.00 л" in sent[2][1]

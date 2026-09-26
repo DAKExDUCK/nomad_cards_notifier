@@ -193,7 +193,7 @@ class DatabaseService:
             return result.scalar_one_or_none()
 
     @staticmethod
-    async def set_card_balance(card_id: int, balance: str) -> bool:
+    async def set_card_balance(card_id: int, balance: str, changed_operation_ids: set[int] | None = None) -> bool:
         async with async_session() as session:
             result = await session.execute(
                 select(FuelCardOperation)
@@ -208,14 +208,17 @@ class DatabaseService:
             operation = result.scalar_one_or_none()
             if operation is None:
                 return False
+            previous_balance = operation.fuel_balance
             operation.fuel_balance = balance
             operation.fuel_balance_is_anchor = True
+            if changed_operation_ids is not None and not DatabaseService._balances_equal(previous_balance, balance):
+                changed_operation_ids.add(operation.id)
             operations_result = await session.execute(
                 select(FuelCardOperation).where(FuelCardOperation.card_id == card_id)
             )
             operations = list(operations_result.scalars().all())
             DatabaseService._set_balance_anchor(operations, operation)
-            DatabaseService._recalculate_operation_balances(operations)
+            DatabaseService._recalculate_operation_balances(operations, changed_operation_ids)
             await session.commit()
             return True
 
@@ -263,6 +266,7 @@ class DatabaseService:
     async def recalculate_fuel_balances(
         days: int = 60,
         operation_records: list | None = None,
+        changed_operation_ids: set[int] | None = None,
     ) -> int:
         """Recalculate balances for the complete history; ``days`` is kept for compatibility."""
         async with async_session() as session:
@@ -275,7 +279,7 @@ class DatabaseService:
 
             updated = 0
             for operations in operations_by_card.values():
-                updated += DatabaseService._recalculate_operation_balances(operations)
+                updated += DatabaseService._recalculate_operation_balances(operations, changed_operation_ids)
 
             if operation_records:
                 balances = {
@@ -312,7 +316,7 @@ class DatabaseService:
         )
 
     @staticmethod
-    def _recalculate_operation_balances(operations: list) -> int:
+    def _recalculate_operation_balances(operations: list, changed_operation_ids: set[int] | None = None) -> int:
         operations.sort(key=DatabaseService._operation_sort_key)
         seeded_operations = [
             operation
@@ -332,14 +336,23 @@ class DatabaseService:
 
         for operation in operations[seed_index + 1 :]:
             balance += DatabaseService._signed_movement(operation)
-            operation.fuel_balance = DatabaseService._format_balance(balance)
-            updated += 1
+            new_balance = DatabaseService._format_balance(balance)
+            if not DatabaseService._balances_equal(operation.fuel_balance, new_balance):
+                operation.fuel_balance = new_balance
+                updated += 1
+                if changed_operation_ids is not None:
+                    changed_operation_ids.add(operation.id)
 
         balance = Decimal(str(seed.fuel_balance).replace(",", "."))
         for index in range(seed_index - 1, -1, -1):
             balance -= DatabaseService._signed_movement(operations[index + 1])
-            operations[index].fuel_balance = DatabaseService._format_balance(balance)
-            updated += 1
+            operation = operations[index]
+            new_balance = DatabaseService._format_balance(balance)
+            if not DatabaseService._balances_equal(operation.fuel_balance, new_balance):
+                operation.fuel_balance = new_balance
+                updated += 1
+                if changed_operation_ids is not None:
+                    changed_operation_ids.add(operation.id)
 
         return updated
 
@@ -351,6 +364,15 @@ class DatabaseService:
     @staticmethod
     def _format_balance(balance: Decimal) -> str:
         return format(balance.quantize(Decimal("0.01")), "f")
+
+    @staticmethod
+    def _balances_equal(left: str | None, right: str | None) -> bool:
+        if left is None or right is None:
+            return left == right
+        try:
+            return Decimal(str(left).replace(",", ".")) == Decimal(str(right).replace(",", "."))
+        except InvalidOperation:
+            return left == right
 
     @staticmethod
     def _operation_datetime(value: str | None) -> datetime | None:

@@ -237,12 +237,17 @@ class NomadCardsCollector:
                 detail_html = await self._get_text(session, card.url)
                 top_ups = self._parse_card_operations(detail_html, card.external_id)
                 operation_count += await DatabaseService.save_card_snapshot(card, top_ups)
-            await DatabaseService.recalculate_fuel_balances()
+            changed_operation_ids: set[int] = set()
+            await DatabaseService.recalculate_fuel_balances(changed_operation_ids=changed_operation_ids)
 
         sent_operations = await DatabaseService.get_sent_notification_operations()
         if self.edit_notify:
             for operation in sent_operations:
-                if operation.notification_chat_id and operation.notification_message_id:
+                if (
+                    operation.id in changed_operation_ids
+                    and operation.notification_chat_id
+                    and operation.notification_message_id
+                ):
                     notification = await self._format_notification([operation])
                     await self.edit_notify(
                         int(operation.notification_chat_id), operation.notification_message_id, notification
