@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from urllib.parse import urlparse
 
 import dotenv
@@ -71,6 +72,13 @@ NOMAD_PASSWORD = os.getenv("NOMAD_PASSWORD", "")
 NOMAD_CLID = os.getenv("NOMAD_CLID", "")
 NOMAD_NOTIFY_CHAT_ID = os.getenv("NOMAD_NOTIFY_CHAT_ID", "")
 NOMAD_BOT_CHAT_ID = _get_int_env("NOMAD_BOT_CHAT_ID", _get_int_env("NOMAD_NOTIFY_CHAT_ID", 0))
+NOMAD_DAILY_REPORT_CHAT_ID = _get_int_env("NOMAD_DAILY_REPORT_CHAT_ID", 0)
+NOMAD_DAILY_REPORT_TIME = os.getenv("NOMAD_DAILY_REPORT_TIME", "").strip()
+if NOMAD_DAILY_REPORT_TIME:
+    try:
+        datetime.strptime(NOMAD_DAILY_REPORT_TIME, "%H:%M")
+    except ValueError as error:
+        raise ConfigFieldWrongType("NOMAD_DAILY_REPORT_TIME", NOMAD_DAILY_REPORT_TIME, str) from error
 NOMAD_COLLECT_INTERVAL = _get_int_env("NOMAD_COLLECT_INTERVAL", 300)
 if NOMAD_COLLECT_INTERVAL <= 0:
     raise ConfigFieldWrongType("NOMAD_COLLECT_INTERVAL", NOMAD_COLLECT_INTERVAL, int)
