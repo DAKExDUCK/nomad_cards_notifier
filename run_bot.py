@@ -49,13 +49,7 @@ async def _send_daily_balance_report(bot: Bot) -> None:
     else:
         for card, balance in cards:
             card_name = escape(card.name or card.external_id)
-            card_balance = escape(balance or "не указан")
-            last_operations = await DatabaseService.get_card_operations(card.id, 1)
-            last_operation = last_operations[0] if last_operations else None
-            card_fuel_type = None
-            if last_operation:
-                card_fuel_type = escape(last_operation.fuel)
-            lines.append(f"• <b>{card_name}</b>: {f'{card_fuel_type} - ' if card_fuel_type else ''}<b>{card_balance} л</b>")
+            lines.append(f"• <b>{card_name}</b>: <i>{f'{balance} л' if balance is not None else 'не указан'}</i>")
     await bot.send_message(
         chat_id=NOMAD_DAILY_REPORT_CHAT_ID,
         text="\n".join(lines),
